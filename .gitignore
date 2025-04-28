@@ -1,4 +1,11 @@
+.vscode
+**.db
+.env
+
+
 Benchmark
 Re_algos
 Simulator
 CIMagent.code-workspace
+
+Platform/log
