@@ -77,6 +77,7 @@ async def generate_agents(
     user_update2 = []
     post_list = []
 
+
     for agent_id in range(len(agent_info)):
         profile = {
             "nodes": [],
@@ -122,6 +123,8 @@ async def generate_agents(
 
         following_id_list = ast.literal_eval(
             agent_info["following_agentid_list"][agent_id])
+        
+        #TODO 将follow关系转化成adj，并更新diffusion
         if not isinstance(following_id_list, int):
             if len(following_id_list) != 0:
                 for follow_id in following_id_list:
@@ -135,6 +138,9 @@ async def generate_agents(
         if len(previous_posts) != 0:
             for post in previous_posts:
                 post_list.append((agent_id, post, start_time, 0, 0))
+
+    adj = agent_graph.get_adjacency_matrix()
+    agent_graph.diffusion.update_adj_matrix(adj)
 
     # generate_log.info('agent gegenerate finished.')
 
@@ -529,7 +535,10 @@ async def generate_reddit_agents(
             agent.memory.write_record(
                 MemoryRecord(agent_msg, OpenAIBackendRole.ASSISTANT))
 
+
     tasks = [process_agent(i) for i in range(len(agent_info))]
     await asyncio.gather(*tasks)
+    adj = agent_graph.get_adjacency_matrix()
+    agent_graph.diffusion.update_adj_matrix(adj)
 
     return agent_graph

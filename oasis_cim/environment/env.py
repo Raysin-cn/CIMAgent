@@ -163,6 +163,7 @@ class OasisEnv:
         await control_agent.perform_action_by_data(action.action,
                                                    **action.args)
 
+    #TODO: 需要更改LLM_action，关注动作等改变graph结构的需要用CIM框架
     async def _perform_llm_action(self, agent):
         r"""Send the request to the llm model and execute the action.
         """

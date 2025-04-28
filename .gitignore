@@ -1,5 +1,8 @@
 .vscode
 **.db
+**.pkl
+**.sql
+**.txt
 .env
 log
 

@@ -1,12 +1,12 @@
 # =========== Copyright 2023 @ CAMEL-AI.org. All Rights Reserved. ===========
-# Licensed under the Apache License, Version 2.0 (the “License”);
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an “AS IS” BASIS,
+# distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
@@ -17,12 +17,16 @@ from typing import Any, Literal
 
 import igraph as ig
 from neo4j import GraphDatabase
+import scipy.sparse as sp
 
 # from oasis.social_agent.agent import SocialAgent
 from oasis.social_platform.config import Neo4jConfig
 
 # modified_oasis_cim
 from oasis_cim.social_agent.agent import SocialAgent
+
+# import diffusion models
+from diffusion import Diffusion
 
 class Neo4jHandler:
 
@@ -174,7 +178,7 @@ class Neo4jHandler:
         tx.run(query)
 
 
-class AgentGraph:
+class AgentGraph():
     r"""AgentGraph class to manage the social graph of agents."""
 
     def __init__(
@@ -190,6 +194,7 @@ class AgentGraph:
             assert neo4j_config.is_valid()
             self.graph = Neo4jHandler(neo4j_config)
         self.agent_mappings: dict[int, SocialAgent] = {}
+        self.diffusion = Diffusion()
 
     def reset(self):
         if self.backend == "igraph":
@@ -287,3 +292,38 @@ class AgentGraph:
             vertex_frame_width=vertex_frame_width,
             bbox=(width, height),
         )
+
+    def get_adjacency_matrix(self) -> sp.csr_matrix:
+        """
+        获取图的邻接矩阵
+        Get the adjacency matrix of the graph
+        
+        Returns:
+            邻接矩阵（CSR格式） / Adjacency matrix in CSR format
+        """
+        if self.backend == "igraph":
+            # 使用igraph的get_adjacency方法获取邻接矩阵
+            adj_matrix = self.graph.get_adjacency()
+            # 转换为scipy稀疏矩阵
+            return sp.csr_matrix(adj_matrix)
+        else:
+            # 对于neo4j后端，需要手动构建邻接矩阵
+            num_nodes = self.get_num_nodes()
+            edges = self.get_edges()
+            
+            # 创建邻接矩阵
+            row = []
+            col = []
+            data = []
+            
+            # 获取节点ID到索引的映射
+            node_to_idx = {node_id: idx for idx, (node_id, _) in enumerate(self.get_agents())}
+            
+            # 填充邻接矩阵
+            for src, dst in edges:
+                row.append(node_to_idx[src])
+                col.append(node_to_idx[dst])
+                data.append(1.0)
+            
+            # 创建CSR格式的稀疏矩阵
+            return sp.csr_matrix((data, (row, col)), shape=(num_nodes, num_nodes))
