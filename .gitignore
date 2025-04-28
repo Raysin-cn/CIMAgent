@@ -1,7 +1,9 @@
 .vscode
 **.db
 .env
+log
 
+**__pycache__**
 
 Benchmark
 Re_algos

@@ -18,9 +18,11 @@ from typing import Any, Literal
 import igraph as ig
 from neo4j import GraphDatabase
 
-from oasis.social_agent.agent import SocialAgent
+# from oasis.social_agent.agent import SocialAgent
 from oasis.social_platform.config import Neo4jConfig
 
+# modified_oasis_cim
+from oasis_cim.social_agent.agent import SocialAgent
 
 class Neo4jHandler:
 

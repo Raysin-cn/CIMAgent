@@ -23,11 +23,15 @@ from camel.agents import ChatAgent
 from camel.messages import BaseMessage
 from camel.models import BaseModelBackend
 
-from oasis.social_agent.agent_action import SocialAction
-from oasis.social_agent.agent_environment import SocialEnvironment
+# from oasis.social_agent.agent_action import SocialAction
+# from oasis.social_agent.agent_environment import SocialEnvironment
 from oasis.social_platform import Channel
 from oasis.social_platform.config import UserInfo
 from oasis.social_platform.typing import ActionType
+
+# modified_oasis_cim
+from oasis_cim.social_agent.agent_action import SocialAction
+from oasis_cim.social_agent.agent_environment import SocialEnvironment
 
 if TYPE_CHECKING:
     from oasis.social_agent import AgentGraph

@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =========== Copyright 2023 @ CAMEL-AI.org. All Rights Reserved. ===========
-from Platform.oasis_cim.environment.env import OasisEnv
+from oasis_cim.environment.env import OasisEnv
 
 
 def make(*args, **kwargs):

@@ -31,7 +31,7 @@ from oasis.social_platform.config import Neo4jConfig, UserInfo
 from oasis.social_platform.typing import ActionType
 
 # modified_oasis_cim
-from Platform.oasis_cim.social_agent import AgentGraph, SocialAgent
+from oasis_cim.social_agent import AgentGraph, SocialAgent
 
 
 async def generate_agents(

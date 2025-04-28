@@ -20,8 +20,8 @@ from oasis.social_platform.typing import ActionType, DefaultPlatformType
 from oasis.testing.show_db import print_db_contents
 
 # modified_oasis_cim
-from Platform.oasis_cim.environment.env_action import EnvAction, SingleAction
-from Platform.oasis_cim.environment.make import make
+from oasis_cim.environment.env_action import EnvAction, SingleAction
+from oasis_cim.environment.make import make
 
 
 __all__ = [

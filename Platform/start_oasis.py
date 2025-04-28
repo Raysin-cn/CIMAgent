@@ -5,7 +5,7 @@ from camel.models import ModelFactory
 from camel.types import ModelPlatformType, ModelType
 
 import oasis
-import Platform.oasis_cim as oasis
+import oasis_cim as oasis
 from oasis import ActionType, EnvAction, SingleAction
 
 import os

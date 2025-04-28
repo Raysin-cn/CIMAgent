@@ -28,8 +28,8 @@ from oasis.social_platform.typing import (ActionType, DefaultPlatformType,
                                           RecsysType)
 
 # modified_oasis_cim
-from Platform.oasis_cim.environment.env_action import EnvAction, SingleAction
-from Platform.oasis_cim.social_agent.agents_generator import (generate_agents,
+from oasis_cim.environment.env_action import EnvAction, SingleAction
+from oasis_cim.social_agent.agents_generator import (generate_agents,
                                                               generate_reddit_agents)
 
 # Create log directory if it doesn't exist
