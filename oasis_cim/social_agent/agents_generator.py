@@ -79,13 +79,23 @@ async def generate_agents(
 
 
     for agent_id in range(len(agent_info)):
+        # Instantiate an agent
         profile = {
-            "nodes": [],
-            "edges": [],
+            "nodes": [],  # Relationships with other agents
+            "edges": [],  # Relationship details
             "other_info": {},
         }
-        profile["other_info"]["user_profile"] = agent_info["user_char"][
-            agent_id]
+        # Update agent profile with additional information
+        for key in agent_info.columns:
+            value = agent_info[key][agent_id]
+            # 尝试将字符串形式的其他哈希类型转换为实际的哈希类型
+            if isinstance(value, str):
+                try:
+                    value = eval(value)
+                except:
+                    pass
+            profile["other_info"][key] = value
+
 
         user_info = UserInfo(
             name=agent_info["username"][agent_id],
@@ -458,7 +468,16 @@ async def generate_reddit_agents(
         profile = {
             "nodes": [],  # Relationships with other agents
             "edges": [],  # Relationship details
-            "other_info": {},
+            "other_info": {
+                "user_profile": "Nothing",
+                "mbti": "None",
+                "gender": "None",
+                "country": "None",
+                "age": "None",
+                "activity_level": ["off_line"] * 24,
+                "activity_level_frequency": [3] * 24,
+                "active_threshold": [0.1] * 24,
+            },
         }
         # Update agent profile with additional information
         profile["other_info"]["user_profile"] = agent_info[i]["persona"]
@@ -466,6 +485,9 @@ async def generate_reddit_agents(
         profile["other_info"]["gender"] = agent_info[i]["gender"]
         profile["other_info"]["age"] = agent_info[i]["age"]
         profile["other_info"]["country"] = agent_info[i]["country"]
+        profile["other_info"]["activity_level"] = agent_info[i]["activity_level"]
+        profile["other_info"]["activity_level_frequency"] = agent_info[i]["activity_level_frequency"]
+        profile["other_info"]["active_threshold"] = agent_info[i]["active_threshold"]
 
         user_info = UserInfo(
             name=agent_info[i]["username"],

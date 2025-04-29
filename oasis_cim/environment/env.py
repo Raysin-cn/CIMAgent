@@ -1,12 +1,12 @@
 # =========== Copyright 2023 @ CAMEL-AI.org. All Rights Reserved. ===========
-# Licensed under the Apache License, Version 2.0 (the “License”);
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an “AS IS” BASIS,
+# distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
@@ -14,6 +14,7 @@
 import asyncio
 import logging
 import os
+import random
 from datetime import datetime
 from typing import List, Optional, Union
 
@@ -62,6 +63,7 @@ class OasisEnv:
                                      List[BaseModelBackend]]] = None,
         available_actions: list[ActionType] = None,
         semaphore: int = 128,
+        time_engine: str = None,
     ) -> None:
         r"""Init the oasis environment.
 
@@ -78,10 +80,13 @@ class OasisEnv:
                 `ModelType.DEFAULT`)
             available_actions: The actions to use for the agents. Choose from
                 `ActionType`.
+            time_engine: The type of time engine to use. Can be "activity_level" or 
+                "activity_level_frequency". If None, no time engine is used.
         """
         self.agent_profile_path = agent_profile_path
         self.agent_models = agent_models
         self.available_actions = available_actions
+        self.time_engine = time_engine
         # Use a semaphore to limit the number of concurrent requests
         self.llm_semaphore = asyncio.Semaphore(semaphore)
         if isinstance(platform, DefaultPlatformType):
@@ -192,13 +197,28 @@ class OasisEnv:
         env_log.info("update rec table.")
 
         # Some llm agents perform actions
-        # TODO: 是否在此处需要引入时间引擎，使得特定的agent在特定的时间才能执行动作.
-        if not action.activate_agents:
+        if not action.activate_agents and not self.time_engine:
             env_log.warning(
                 "activate_agents is None, default to activate all agents.")
             activate_agents = [
                 agent_id for agent_id, _ in self.agent_graph.get_agents()
             ]
+        #在此处需要引入时间引擎，使得特定的agent在特定的时间才能执行动作.
+        elif self.time_engine == "activity_level":
+            current_time = self.platform.sandbox_clock.time_step%24
+            print("Sandbox clock current_time: ", current_time)
+            activate_agents = [
+                agent_id for agent_id, _ in self.agent_graph.get_agents()
+                if self.agent_graph.get_agent(agent_id).user_info.profile["other_info"].get("activity_level", ["off_line"]*24)[current_time] != "off_line"
+            ]
+        elif self.time_engine == "activity_level_frequency":
+            current_time = self.platform.sandbox_clock.time_step%24
+            print("Sandbox clock current_time: ", current_time)
+            activate_agents = []
+            for agent_id, _ in self.agent_graph.get_agents():
+                activity_level_frequency = self.agent_graph.get_agent(agent_id).user_info.profile["other_info"].get("activity_level_frequency", [0]*24)[current_time]
+                if random.random()/24 < activity_level_frequency:
+                    activate_agents.append(agent_id)
         else:
             activate_agents = action.activate_agents
 
