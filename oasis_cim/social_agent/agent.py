@@ -131,7 +131,7 @@ class SocialAgent(ChatAgent):
                 agent_log.info(f"Agent {self.social_agent_id} performed "
                                f"action: {action_name} with args: {args}")
                 # Abort graph action for if 100w Agent
-                # self.perform_agent_graph_action(action_name, args)
+                self.perform_agent_graph_action(action_name, args)
         except Exception as e:
             agent_log.error(f"Agent {self.social_agent_id} error: {e}")
 

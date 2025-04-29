@@ -192,6 +192,7 @@ class OasisEnv:
         env_log.info("update rec table.")
 
         # Some llm agents perform actions
+        # TODO: 是否在此处需要引入时间引擎，使得特定的agent在特定的时间才能执行动作.
         if not action.activate_agents:
             env_log.warning(
                 "activate_agents is None, default to activate all agents.")

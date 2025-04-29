@@ -29,13 +29,13 @@ async def main():
     # NOTE: You need to deploy the vllm server first
     vllm_model_1 = ModelFactory.create(
         model_platform=ModelPlatformType.VLLM,
-        model_type="qwen-2",
-        url="http://10.109.28.7:8080/v1",
+        model_type="Qwen2.5-14B-Instruct",
+        url="http://localhost:21474/v1",
     )
     vllm_model_2 = ModelFactory.create(
         model_platform=ModelPlatformType.VLLM,
-        model_type="qwen-2",
-        url="http://10.109.27.103:8080/v1",
+        model_type="Qwen2.5-14B-Instruct",
+        url="http://localhost:21474/v1",
     )
     # Define the models for agents. Agents will select models based on
     # pre-defined scheduling strategies
@@ -104,4 +104,16 @@ async def main():
 
 
 if __name__ == "__main__":
+    # test vllm model
+    # async def test_model():
+    #     vllm_model = ModelFactory.create(
+    #         model_platform=ModelPlatformType.VLLM,
+    #         model_type="Qwen2.5-14B-Instruct",
+    #         url="http://localhost:21474/v1",
+    #     )
+    #     print(dir(vllm_model))
+    #     # 假设模型有 chat 接口
+    #     response = await vllm_model.run([{"role": "user", "content": "你好！"}])
+    #     print(response)
+    # asyncio.run(test_model())
     asyncio.run(main())

@@ -124,7 +124,6 @@ async def generate_agents(
         following_id_list = ast.literal_eval(
             agent_info["following_agentid_list"][agent_id])
         
-        #TODO 将follow关系转化成adj，并更新diffusion
         if not isinstance(following_id_list, int):
             if len(following_id_list) != 0:
                 for follow_id in following_id_list:
