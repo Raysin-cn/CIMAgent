@@ -197,13 +197,9 @@ class OasisEnv:
         env_log.info("update rec table.")
 
         # Some llm agents perform actions
-        if not action.activate_agents and not self.time_engine:
-            env_log.warning(
-                "activate_agents is None, default to activate all agents.")
-            activate_agents = [
-                agent_id for agent_id, _ in self.agent_graph.get_agents()
-            ]
         #在此处需要引入时间引擎，使得特定的agent在特定的时间才能执行动作.
+        if action.activate_agents:
+            activate_agents = action.activate_agents
         elif self.time_engine == "activity_level":
             current_time = self.platform.sandbox_clock.time_step%24
             print("Sandbox clock current_time: ", current_time)
@@ -220,7 +216,11 @@ class OasisEnv:
                 if random.random()/24 < activity_level_frequency:
                     activate_agents.append(agent_id)
         else:
-            activate_agents = action.activate_agents
+            env_log.warning(
+                "activate_agents and time_engine are None, default to activate all agents.")
+            activate_agents = [
+                agent_id for agent_id, _ in self.agent_graph.get_agents()
+            ]
 
         llm_tasks = []
         for agent_id in activate_agents:

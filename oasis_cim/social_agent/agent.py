@@ -1,12 +1,12 @@
 # =========== Copyright 2023 @ CAMEL-AI.org. All Rights Reserved. ===========
-# Licensed under the Apache License, Version 2.0 (the “License”);
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an “AS IS” BASIS,
+# distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
@@ -121,9 +121,9 @@ class SocialAgent(ChatAgent):
                 f"actions for example to just like the posts. "
                 f"Here is your social media environment: {env_prompt}"))
         try:
-            agent_log.info(
-                f"Agent {self.social_agent_id} observing environment: "
-                f"{env_prompt}")
+            # agent_log.info(
+            #     f"Agent {self.social_agent_id} observing environment: "
+            #     f"{env_prompt}")
             response = await self.astep(user_msg)
             for tool_call in response.info['tool_calls']:
                 action_name = tool_call.tool_name
@@ -132,6 +132,7 @@ class SocialAgent(ChatAgent):
                                f"action: {action_name} with args: {args}")
                 # Abort graph action for if 100w Agent
                 self.perform_agent_graph_action(action_name, args)
+            agent_log.info("+"*10 + f"  Agent {self.social_agent_id} performed actions: {response}  " + "+"*10)
         except Exception as e:
             agent_log.error(f"Agent {self.social_agent_id} error: {e}")
 
