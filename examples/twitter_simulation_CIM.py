@@ -77,7 +77,7 @@ async def main():
         os.remove(db_path)
 
     # Read user profiles
-    users_df = pd.read_csv("data/twitter_dataset/user_all_id_time_normalized.csv")
+    users_df = pd.read_csv("data/twitter_dataset_CIM/processed_users.csv")
     
     # Create a mapping from user_id to agent_id (0-based index)
     user_to_agent = {user_id: idx for idx, user_id in enumerate(users_df['user_id'].values)}
@@ -86,7 +86,7 @@ async def main():
     env = oasis.make(
         platform=oasis.DefaultPlatformType.TWITTER,
         database_path=db_path,
-        agent_profile_path=("data/twitter_dataset/user_all_id_time_normalized.csv"),
+        agent_profile_path=("data/twitter_dataset_CIM/processed_users.csv"),
         agent_models=models,
         available_actions=available_actions,
         time_engine="activity_level_frequency",
@@ -96,7 +96,7 @@ async def main():
     await env.reset()
 
     # Read all_topics.csv
-    topics_df = pd.read_csv("data/twitter_dataset/all_topics.csv")
+    topics_df = pd.read_csv("data/twitter_dataset_CIM/post_topics.csv")
     
     # Create initial posts from topics
     initial_actions = []

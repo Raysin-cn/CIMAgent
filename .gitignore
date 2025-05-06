@@ -3,6 +3,7 @@
 **.pkl
 **.sql
 **.txt
+**.bin
 .env
 log
 

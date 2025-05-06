@@ -47,8 +47,7 @@ def get_stat_list(prop_g: prop_graph):
 
 
 def get_xdb_data(db_paths, topic_name):
-    source_tweet_content = all_topic_df[all_topic_df["topic_name"] ==
-                                        topic_name]["source_tweet"].item()
+    source_tweet_content = all_topic_df[all_topic_df["topic_name"] == topic_name]["source_tweet"].item()
     stats = []
     for db_path in db_paths:
         pg = prop_graph(source_tweet_content, db_path, viz=False)

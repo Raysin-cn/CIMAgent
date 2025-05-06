@@ -1,0 +1,821 @@
+
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>数据库分析报告</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                .section { margin-bottom: 30px; }
+                h1, h2, h3 { color: #333; }
+                table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f5f5f5; }
+                .stats { background-color: #f9f9f9; padding: 15px; border-radius: 5px; }
+                .visualization { margin: 20px 0; }
+                img { max-width: 100%; height: auto; }
+                .legend { margin: 10px 0; }
+                .legend ul { list-style-type: none; padding: 0; }
+                .legend li { margin: 5px 0; }
+            </style>
+        </head>
+        <body>
+            <h1>数据库分析报告</h1>
+        
+            <div class="section db-structure">
+                <h2>数据库结构分析</h2>
+                <div class="stats">
+                    <p>总表数: 13</p>
+                    <p>总大小: 774.52 MB</p>
+                </div>
+            
+                <h3>表: user</h3>
+                <div class="stats">
+                    <p>行数: 111</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>user_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>agent_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>user_name</td>
+                        <td>TEXT</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>name</td>
+                        <td>TEXT</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>bio</td>
+                        <td>TEXT</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>created_at</td>
+                        <td>DATETIME</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>num_followings</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td>0</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>num_followers</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td>0</td>
+                    </tr>
+                    </table>
+                <h3>表: sqlite_sequence</h3>
+                <div class="stats">
+                    <p>行数: 7</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>name</td>
+                        <td></td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>seq</td>
+                        <td></td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    </table>
+                <h3>表: post</h3>
+                <div class="stats">
+                    <p>行数: 307</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>post_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>user_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>original_post_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>content</td>
+                        <td>TEXT</td>
+                        <td>否</td>
+                        <td>''</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>quote_content</td>
+                        <td>TEXT</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>created_at</td>
+                        <td>DATETIME</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>num_likes</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td>0</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>num_dislikes</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td>0</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>num_shares</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td>0</td>
+                    </tr>
+                    </table>
+                <h3>表: follow</h3>
+                <div class="stats">
+                    <p>行数: 88</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>follow_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>follower_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>followee_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>created_at</td>
+                        <td>DATETIME</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    </table>
+                <h3>表: mute</h3>
+                <div class="stats">
+                    <p>行数: 0</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>mute_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>muter_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>mutee_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>created_at</td>
+                        <td>DATETIME</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    </table>
+                <h3>表: like</h3>
+                <div class="stats">
+                    <p>行数: 24</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>like_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>user_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>post_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>created_at</td>
+                        <td>DATETIME</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    </table>
+                <h3>表: dislike</h3>
+                <div class="stats">
+                    <p>行数: 1</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>dislike_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>user_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>post_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>created_at</td>
+                        <td>DATETIME</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    </table>
+                <h3>表: trace</h3>
+                <div class="stats">
+                    <p>行数: 2478</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>user_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>created_at</td>
+                        <td>DATETIME</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>action</td>
+                        <td>TEXT</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>info</td>
+                        <td>TEXT</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    </table>
+                <h3>表: rec</h3>
+                <div class="stats">
+                    <p>行数: 222</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>user_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>post_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    </table>
+                <h3>表: comment</h3>
+                <div class="stats">
+                    <p>行数: 610</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>comment_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>post_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>user_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>content</td>
+                        <td>TEXT</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>created_at</td>
+                        <td>DATETIME</td>
+                        <td>否</td>
+                        <td>CURRENT_TIMESTAMP</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>num_likes</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td>0</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>num_dislikes</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td>0</td>
+                    </tr>
+                    </table>
+                <h3>表: comment_like</h3>
+                <div class="stats">
+                    <p>行数: 129</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>comment_like_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>user_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>comment_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>created_at</td>
+                        <td>DATETIME</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    </table>
+                <h3>表: comment_dislike</h3>
+                <div class="stats">
+                    <p>行数: 0</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>comment_dislike_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>user_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>comment_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>created_at</td>
+                        <td>DATETIME</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    </table>
+                <h3>表: product</h3>
+                <div class="stats">
+                    <p>行数: 0</p>
+                    <p>大小: 61008.00 KB</p>
+                </div>
+                <table>
+                    <tr>
+                        <th>列名</th>
+                        <th>类型</th>
+                        <th>非空</th>
+                        <th>默认值</th>
+                    </tr>
+                
+                    <tr>
+                        <td>product_id</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>product_name</td>
+                        <td>TEXT</td>
+                        <td>否</td>
+                        <td></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>sales</td>
+                        <td>INTEGER</td>
+                        <td>否</td>
+                        <td>0</td>
+                    </tr>
+                    </table></div>
+            <div class="section post-analysis">
+                <h2>帖子内容分析</h2>
+                <div class="stats">
+                    <p>总帖子数: 307</p>
+                    <p>平均点赞数: 0.08</p>
+                    <p>平均点踩数: 0.00</p>
+                    <p>平均分享数: 0.14</p>
+                </div>
+            
+                <div class="visualization">
+                    <h3>词频分析</h3>
+                    <img src="post_wordcloud.png" alt="帖子词云">
+                </div>
+                </div>
+            <div class="section trace-analysis">
+                <h2>用户行为分析</h2>
+                <div class="stats">
+                    <p>总行为数: 2478</p>
+                    <p>独立用户数: 111</p>
+                </div>
+            
+            <h3>行为类型分布</h3>
+            <table>
+                <tr>
+                    <th>行为类型</th>
+                    <th>次数</th>
+                </tr>
+            
+                <tr>
+                    <td>refresh</td>
+                    <td>1397</td>
+                </tr>
+                
+                <tr>
+                    <td>create_comment</td>
+                    <td>610</td>
+                </tr>
+                
+                <tr>
+                    <td>create_post</td>
+                    <td>263</td>
+                </tr>
+                
+                <tr>
+                    <td>like_comment</td>
+                    <td>129</td>
+                </tr>
+                
+                <tr>
+                    <td>like_post</td>
+                    <td>24</td>
+                </tr>
+                
+                <tr>
+                    <td>repost</td>
+                    <td>23</td>
+                </tr>
+                
+                <tr>
+                    <td>quote_post</td>
+                    <td>20</td>
+                </tr>
+                
+                <tr>
+                    <td>do_nothing</td>
+                    <td>6</td>
+                </tr>
+                
+                <tr>
+                    <td>follow</td>
+                    <td>3</td>
+                </tr>
+                
+                <tr>
+                    <td>search_posts</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>dislike_post</td>
+                    <td>1</td>
+                </tr>
+                </table></div>
+            <div class="section directed-graph">
+                <h2>User Interaction Analysis</h2>
+                <div class="stats">
+                    <h3>Basic Statistics</h3>
+                    <ul>
+        <li>total_follows: 88</li><li>total_likes: 24</li><li>total_dislikes: 1</li><li>unique_users: 111</li>
+                    </ul>
+                </div>
+                
+                <div class="top-users">
+                    <h3>Most Influential Users</h3>
+                    <table>
+                        <tr>
+                            <th>Username</th>
+                            <th>Influence Score</th>
+                            <th>Followers Count</th>
+                            <th>Post Count</th>
+                            <th>Likes Received</th>
+                        </tr>
+        
+                        <tr>
+                            <td>user32</td>
+                            <td>27.30</td>
+                            <td>73</td>
+                            <td>7</td>
+                            <td>6</td>
+                        </tr>
+            
+                        <tr>
+                            <td>user30</td>
+                            <td>3.60</td>
+                            <td>0</td>
+                            <td>3</td>
+                            <td>0</td>
+                        </tr>
+            
+                        <tr>
+                            <td>user65</td>
+                            <td>3.40</td>
+                            <td>0</td>
+                            <td>5</td>
+                            <td>0</td>
+                        </tr>
+            
+                        <tr>
+                            <td>user92</td>
+                            <td>3.00</td>
+                            <td>0</td>
+                            <td>5</td>
+                            <td>0</td>
+                        </tr>
+            
+                        <tr>
+                            <td>user98</td>
+                            <td>3.00</td>
+                            <td>0</td>
+                            <td>4</td>
+                            <td>0</td>
+                        </tr>
+            
+                        <tr>
+                            <td>user91</td>
+                            <td>2.80</td>
+                            <td>0</td>
+                            <td>4</td>
+                            <td>0</td>
+                        </tr>
+            
+                        <tr>
+                            <td>user108</td>
+                            <td>2.70</td>
+                            <td>0</td>
+                            <td>7</td>
+                            <td>1</td>
+                        </tr>
+            
+                        <tr>
+                            <td>user35</td>
+                            <td>2.60</td>
+                            <td>0</td>
+                            <td>5</td>
+                            <td>0</td>
+                        </tr>
+            
+                        <tr>
+                            <td>user93</td>
+                            <td>2.60</td>
+                            <td>0</td>
+                            <td>5</td>
+                            <td>0</td>
+                        </tr>
+            
+                        <tr>
+                            <td>user15</td>
+                            <td>2.60</td>
+                            <td>0</td>
+                            <td>3</td>
+                            <td>0</td>
+                        </tr>
+            
+                    </table>
+                </div>
+                
+                <div class="graph-visualization">
+                    <h3>Interaction Graph</h3>
+                    <img src="interaction_graph.png" alt="User Interaction Graph" style="max-width: 100%;">
+                    <div class="legend">
+                        <p>Legend:</p>
+                        <ul>
+                            <li><span style="color: blue;">Blue arrows</span> - Follow relationships</li>
+                            <li><span style="color: green;">Green arrows</span> - Like relationships</li>
+                            <li><span style="color: red;">Red arrows</span> - Dislike relationships</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="metrics-visualization">
+                    <h3>User Metrics Analysis</h3>
+                    <img src="user_metrics.png" alt="User Metrics Analysis" style="max-width: 100%;">
+                </div>
+            </div>
+        
+        </body>
+        </html>
+        
