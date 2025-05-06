@@ -140,7 +140,7 @@ async def main():
     await backup_database(db_path, 0)
 
     # Run for 1 days (24 * 1 = 24 timesteps)
-    for step in range(24):
+    for step in range(72):
         # Create empty action to let all agents act
         empty_action = EnvAction()
         await env.step(empty_action)

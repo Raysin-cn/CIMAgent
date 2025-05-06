@@ -230,6 +230,7 @@ class UserDataProcessor:
             if mask.any():
                 idx = enhance_user_data[mask].index[0]
                 enhance_user_data.at[idx, 'following_list'] = following_list
+                enhance_user_data.at[idx, 'following_agentid_list'] = [enhance_user_data[enhance_user_data['user_id'] == int(following_id)].index[0] for following_id in following_list]
         
         # 更新粉丝关系
         for user_id, followers_list in followers_relationships.items():
@@ -237,7 +238,6 @@ class UserDataProcessor:
             if mask.any():
                 idx = enhance_user_data[mask].index[0]
                 enhance_user_data.at[idx, 'followers_list'] = followers_list
-                enhance_user_data.at[idx, 'following_agentid_list'] = followers_list
         
         # 生成邻接矩阵并可视化
         n_users = len(enhance_user_data)
@@ -280,5 +280,21 @@ async def main():
     await processor.save_processed_data(output_path)
     print(f"处理完成，数据已保存到: {output_path}")
 
+def following_list_to_following_agentid_list(csv_path: str):
+    user_data = pd.read_csv(csv_path)
+    for index, row in user_data.iterrows():
+        if row['following_list'] is not None and isinstance(row['following_list'], str):
+            # 将字符串形式的列表转换为实际的列表
+            following_list = eval(row['following_list'])
+            following_agentid_list = []
+            for following_id in following_list:
+                # 检查是否存在匹配的用户ID
+                matched_users = user_data[user_data['user_id'] == int(following_id)]
+                if not matched_users.empty:
+                    following_agentid_list.append(int(matched_users.index[0]))
+            user_data.at[index, 'following_agentid_list'] = following_agentid_list
+    user_data.to_csv(csv_path, index=False)
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    # asyncio.run(main())
+    following_list_to_following_agentid_list("data/twitter_dataset_CIM/processed_users.csv")
