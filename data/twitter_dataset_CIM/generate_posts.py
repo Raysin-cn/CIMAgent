@@ -177,7 +177,7 @@ async def main():
     generator = PostGenerator("./data/twitter_dataset_CIM/processed_users.csv")
     
     # 设置话题
-    topic = "美国加征关税对中国来说是有害还是有利的？"
+    topic = "现在出现的LLM智能体是否具备了可以模拟人类社交网络媒体的能力？"
     
     # 生成帖子
     posts = await generator.generate_posts_for_topic(topic, posts_per_user=1)
