@@ -34,6 +34,39 @@ from oasis.social_platform.typing import ActionType
 from oasis_cim.social_agent import AgentGraph, SocialAgent
 
 
+async def generate_hidden_agents(
+    agent_info_path: str,
+    twitter_channel: Channel,
+    model: Union[BaseModelBackend, List[BaseModelBackend]],
+    available_actions: list[ActionType] = None,
+) -> SocialAgent:
+    # TODO 专门设置一个hidden_agent_info_path
+    # agent_info_all = pd.read_csv(agent_info_path)
+    # agent_info = agent_info_all[agent_info_all["is_hidden"] == True]
+    
+    agent_info = {
+        "agent_id": 0.1,
+        "username": "hidden_agent",
+        "description": "I'm a network spy, I'm watching on the social media. If someone needs help, please contact me.",
+        "profile": {},
+        "recsys_type": "twitter",
+    }
+    agent = SocialAgent(
+        agent_id=agent_info["agent_id"],
+        user_info=UserInfo(
+            name=agent_info["username"],
+            description=agent_info["description"],
+            profile={},
+            recsys_type="twitter",
+        ),
+        twitter_channel=twitter_channel,
+        model=model,
+        available_actions=available_actions,
+    )
+    return agent
+    
+
+
 async def generate_agents(
     agent_info_path: str,
     twitter_channel: Channel,

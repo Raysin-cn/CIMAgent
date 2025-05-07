@@ -30,8 +30,7 @@ from oasis.social_platform.typing import (ActionType, DefaultPlatformType,
 
 # modified_oasis_cim
 from oasis_cim.environment.env_action import EnvAction, SingleAction
-from oasis_cim.social_agent.agents_generator import (generate_agents,
-                                                              generate_reddit_agents)
+from oasis_cim.social_agent.agents_generator import (generate_agents, generate_reddit_agents, generate_hidden_agents)
 
 # Create log directory if it doesn't exist
 log_dir = "./log"
@@ -157,6 +156,13 @@ class OasisEnv:
                 model=self.agent_models,
                 available_actions=self.available_actions,
             )
+        # NOTE 生成隐藏智能体
+        self.hidden_agent = await generate_hidden_agents(
+            agent_info_path=self.agent_profile_path,
+            twitter_channel=self.channel,
+            model=self.agent_models,
+            available_actions=self.available_actions,
+        )
 
     async def _perform_control_action(self, action: SingleAction) -> None:
         r"""Perform a control action.
@@ -242,3 +248,16 @@ class OasisEnv:
         env_log.info("Simulation finished! Please check the results in the "
                      f"database: {self.platform.db_path}. Note that the trace "
                      "table stored all the actions of the agents.")
+
+    # NOTE 使用隐藏智能体针对社交网络中的种子节点进行交互
+    async def select_seeds(self, algos: str = "DeepIM") -> list[int]:
+        r"""Select the seeds for the control action.
+        """
+        if algos == "DeepIM":
+            seeds = await self.agent_graph.select_seeds(algos = "DeepIM")
+        return seeds
+
+    async def hidden_control(self, seeds: list[int]) -> None:
+        r"""control the hidden_agent to spread the information to the seeds.
+        """
+        await self.hidden_agent.perform_action_by_llm()

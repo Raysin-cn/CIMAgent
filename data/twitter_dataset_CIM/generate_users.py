@@ -285,9 +285,12 @@ def following_list_to_following_agentid_list(csv_path: str):
     for index, row in user_data.iterrows():
         if row['following_list'] is not None and isinstance(row['following_list'], str):
             # 将字符串形式的列表转换为实际的列表
+            user_id = row['user_id']
             following_list = eval(row['following_list'])
             following_agentid_list = []
             for following_id in following_list:
+                if following_id == user_id:
+                    continue
                 # 检查是否存在匹配的用户ID
                 matched_users = user_data[user_data['user_id'] == int(following_id)]
                 if not matched_users.empty:

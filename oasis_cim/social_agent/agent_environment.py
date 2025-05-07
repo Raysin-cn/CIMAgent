@@ -34,10 +34,15 @@ class SocialEnvironment(Environment):
 
     posts_env_template = Template(
         "After refreshing, you see some posts $posts")
+    
     env_template = Template(
         "$posts_env\npick one you want to perform action that best "
         "reflects your current inclination based on your profile and "
         "posts content. Do not limit your action in just `like` to like posts")
+    
+    # NOTE 隐藏智能体获取环境信息
+    specific_agent_env_template = Template(
+        "I am interested in these agents in the social media: $agent_list")
 
     def __init__(self, action: SocialAction):
         self.action = action
@@ -72,8 +77,16 @@ class SocialEnvironment(Environment):
                        if include_followers else "No follows.")
         posts_env = await self.get_posts_env() if include_posts else ""
 
+
+        # TODO: 分析提示词的产生逻辑，给hidden agent添加一个获取指定智能体信息的功能。
         return self.env_template.substitute(
             followers_env=followers_env,
             follows_env=follows_env,
             posts_env=posts_env,
+        )
+
+    async def get_specific_agent_env(self, agent_list: list[int]) -> str:
+        r"""Get the environment of the specific agent."""
+        return self.specific_agent_env_template.substitute(
+            agent_list=agent_list,
         )

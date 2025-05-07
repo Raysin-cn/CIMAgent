@@ -242,3 +242,4 @@ class SocialAgent(ChatAgent):
     def __str__(self) -> str:
         return (f"{self.__class__.__name__}(agent_id={self.social_agent_id}, "
                 f"model_type={self.model_type.value})")
+    

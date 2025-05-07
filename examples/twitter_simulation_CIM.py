@@ -50,7 +50,7 @@ async def main():
         model_platform=ModelPlatformType.VLLM,
         model_type="/data/model/Qwen3-14B",
         url="http://localhost:21474/v1",
-        model_config_dict={"max_tokens": 20000}
+        model_config_dict={"max_tokens": 16000}
     )
     vllm_model_2 = ModelFactory.create(
         model_platform=ModelPlatformType.VLLM,
@@ -148,6 +148,14 @@ async def main():
         # 每6个时间步备份一次数据库
         if (step + 1) % 2 == 0:
             await backup_database(db_path, step + 1)
+
+        # 每12个时间步，进行一次种子节点选择，以及控制专属智能体将特定信息传播到这些种子节点
+        if (step + 1) % 12 == 0:
+            # 选择种子节点
+            seeds = await env.select_seeds(algos = "DeepIM")
+            # 传播信息
+            
+        
 
     # 最后再备份一次数据库
     await backup_database(db_path, step="Done")

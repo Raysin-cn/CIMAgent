@@ -186,5 +186,16 @@ async def main():
     output_path = f"./data/twitter_dataset_CIM/posts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     await generator.save_posts(posts, output_path)
 
+def posts_topic_csv_add_index_agentid_columns(posts_topic_csv_path: str):
+    """
+    在posts_topic.csv中添加index和agent_id列
+    """
+    posts_topic = pd.read_csv(posts_topic_csv_path)
+    posts_topic["user_id"] = posts_topic.index
+    posts_topic["agent_id"] = "agent_" + posts_topic["user_id"].astype(str)
+    posts_topic.to_csv("./data/twitter_dataset_CIM/posts_topic_2_temp.csv", index=False)
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    # asyncio.run(main())
+    posts_topic_csv_add_index_agentid_columns("./data/twitter_dataset_CIM/posts_topic_2.csv")

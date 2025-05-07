@@ -26,7 +26,7 @@ from oasis.social_platform.config import Neo4jConfig
 from oasis_cim.social_agent.agent import SocialAgent
 
 # import diffusion models
-from diffusion import Diffusion
+from IMmodule.Diffusion import Diffusion
 
 class Neo4jHandler:
 
