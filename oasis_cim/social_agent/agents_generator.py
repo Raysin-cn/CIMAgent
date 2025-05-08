@@ -31,7 +31,7 @@ from oasis.social_platform.config import Neo4jConfig, UserInfo
 from oasis.social_platform.typing import ActionType
 
 # modified_oasis_cim
-from oasis_cim.social_agent import AgentGraph, SocialAgent
+from oasis_cim.social_agent import AgentGraph, SocialAgent, SocialHiddenAgent
 
 
 async def generate_hidden_agents(
@@ -39,29 +39,44 @@ async def generate_hidden_agents(
     twitter_channel: Channel,
     model: Union[BaseModelBackend, List[BaseModelBackend]],
     available_actions: list[ActionType] = None,
+    twitter: Platform = None,
+    agent_graph: AgentGraph = None,
 ) -> SocialAgent:
     # TODO 专门设置一个hidden_agent_info_path
     # agent_info_all = pd.read_csv(agent_info_path)
     # agent_info = agent_info_all[agent_info_all["is_hidden"] == True]
     
     agent_info = {
-        "agent_id": 0.1,
+        "agent_id": 0.1,  # 使用小数ID以区分普通智能体
         "username": "hidden_agent",
-        "description": "I'm a network spy, I'm watching on the social media. If someone needs help, please contact me.",
-        "profile": {},
+        "description": "我是一个隐藏的社交网络智能体。我的主要职责是通过在目标智能体的记忆中植入特定信息来影响他们的行为和决策。我不会在社交平台上进行实际的交互操作，而是专注于生成能够影响目标智能体认知和行为的虚拟响应。我的存在对其他智能体是不可见的，这使我能够更好地完成指定的目标任务。",
+        "profile": {
+            "role": "memory_manipulator",
+            "capabilities": [
+                "生成虚拟响应",
+                "记忆植入",
+                "隐藏身份",
+                "目标导向影响"
+            ],
+            "operation_mode": "stealth",
+            "visibility": "hidden"
+        },
         "recsys_type": "twitter",
     }
-    agent = SocialAgent(
+
+    agent = SocialHiddenAgent(
         agent_id=agent_info["agent_id"],
         user_info=UserInfo(
             name=agent_info["username"],
             description=agent_info["description"],
-            profile={},
-            recsys_type="twitter",
+            profile=agent_info["profile"],
+            recsys_type=agent_info["recsys_type"],
         ),
         twitter_channel=twitter_channel,
         model=model,
+        agent_graph=agent_graph,
         available_actions=available_actions,
+
     )
     return agent
     

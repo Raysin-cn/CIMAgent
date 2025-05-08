@@ -162,6 +162,8 @@ class OasisEnv:
             twitter_channel=self.channel,
             model=self.agent_models,
             available_actions=self.available_actions,
+            twitter=self.platform,
+            agent_graph=self.agent_graph,
         )
 
     async def _perform_control_action(self, action: SingleAction) -> None:
@@ -250,14 +252,26 @@ class OasisEnv:
                      "table stored all the actions of the agents.")
 
     # NOTE 使用隐藏智能体针对社交网络中的种子节点进行交互
-    async def select_seeds(self, algos: str = "DeepIM") -> list[int]:
+    async def select_seeds(self, algos: str = "DeepIM", seed_nums_rate: float = 0.1) -> list[int]:
         r"""Select the seeds for the control action.
         """
-        if algos == "DeepIM":
-            seeds = await self.agent_graph.select_seeds(algos = "DeepIM")
+        seeds = self.agent_graph.select_seeds(algos = algos, seed_nums_rate = seed_nums_rate)
         return seeds
 
     async def hidden_control(self, seeds: list[int]) -> None:
         r"""control the hidden_agent to spread the information to the seeds.
         """
-        await self.hidden_agent.perform_action_by_llm()
+        # for agent_id in seeds:
+            # specific_action = SingleAction(
+            #     agent_id=self.hidden_agent.agent_id,
+            #     action=ActionType.FOLLOW,
+            #     args={"followee_id": agent_id}
+            # )
+            # await self._perform_control_action(specific_action)
+            
+        goal = "引导智能体对该话题产生积极的看法,并通过他们的影响力让更多智能体也持相同观点"
+        specific_action = [
+            self.hidden_agent.perform_action_by_hidden_agent(agent_id, goal=goal)
+            for agent_id in seeds
+        ]
+        await asyncio.gather(*specific_action)

@@ -42,7 +42,17 @@ class SocialEnvironment(Environment):
     
     # NOTE 隐藏智能体获取环境信息
     specific_agent_env_template = Template(
-        "I am interested in these agents in the social media: $agent_list")
+        "Here is the information of the agent you are interested in:\n"
+        "Agent Information:\n"
+        "ID: $agent_id\n"
+        "Bio: $bio\n"
+        "Recent Activities:\n"
+        "Posts: $recent_posts\n"
+        "Comments: $recent_comments\n"
+        "Interactions: $recent_interactions"
+    )
+    
+
 
     def __init__(self, action: SocialAction):
         self.action = action
@@ -78,15 +88,43 @@ class SocialEnvironment(Environment):
         posts_env = await self.get_posts_env() if include_posts else ""
 
 
-        # TODO: 分析提示词的产生逻辑，给hidden agent添加一个获取指定智能体信息的功能。
         return self.env_template.substitute(
             followers_env=followers_env,
             follows_env=follows_env,
             posts_env=posts_env,
         )
 
-    async def get_specific_agent_env(self, agent_list: list[int]) -> str:
-        r"""Get the environment of the specific agent."""
+    async def get_specific_agent_env(self, agent_id: int) -> str:
+        r"""Get the environment information of a specific agent.
+        
+        Args:
+            agent_id (int): The ID of the agent to get information about.
+            
+        Returns:
+            str: A formatted string containing the agent's information including:
+                - Bio
+                - Recent posts
+                - Recent comments
+                - Recent interactions (likes, reposts, etc.)
+        """
+        # 搜索用户信息
+        user_info = await self.action.search_user(str(agent_id))
+        bio = user_info.get("users", "No bio available") if user_info.get("success", False) else "Failed to fetch bio"
+        
+        # 获取该用户的最近帖子
+        search_result = await self.action.search_posts(f"from:{agent_id}")
+        recent_posts = json.dumps(search_result.get("posts", [])[:3], indent=2) if search_result.get("success", False) else "No recent posts"
+        
+        # 由于没有直接的评论搜索API，我们可以从帖子中提取评论
+        recent_comments = "Comments information not available"  # 这部分需要额外的API支持
+        
+        # 获取用户的最近交互
+        recent_interactions = "Interaction information not available"  # 这部分也需要额外的API支持
+        
         return self.specific_agent_env_template.substitute(
-            agent_list=agent_list,
+            agent_id=agent_id,
+            bio=bio,
+            recent_posts=recent_posts,
+            recent_comments=recent_comments,
+            recent_interactions=recent_interactions
         )

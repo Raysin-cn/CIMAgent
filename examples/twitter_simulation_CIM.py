@@ -139,23 +139,27 @@ async def main():
     await env.step(env_actions)
     await backup_database(db_path, 0)
 
+    seeds_list_history = []
+    seeds = await env.select_seeds(algos = "Random", seed_nums_rate = 0.1)
+    await env.hidden_control(seeds)
+    seeds_list_history.append(seeds)
+
     # Run for 1 days (24 * 1 = 24 timesteps)
     for step in range(72):
         # Create empty action to let all agents act
         empty_action = EnvAction()
         await env.step(empty_action)
         
-        # 每6个时间步备份一次数据库
+
+        # 每2个时间步备份一次数据库
         if (step + 1) % 2 == 0:
             await backup_database(db_path, step + 1)
 
-        # 每12个时间步，进行一次种子节点选择，以及控制专属智能体将特定信息传播到这些种子节点
-        if (step + 1) % 12 == 0:
-            # 选择种子节点
-            seeds = await env.select_seeds(algos = "DeepIM")
-            # 传播信息
-            
-        
+        # 每2个时间步，hidden agent 进行一次特殊操作
+        if (step + 1) % 2 == 0:
+            seeds = await env.select_seeds(algos = "Random", seed_nums_rate = 0.1)
+            await env.hidden_control(seeds)
+            seeds_list_history.append(seeds)
 
     # 最后再备份一次数据库
     await backup_database(db_path, step="Done")

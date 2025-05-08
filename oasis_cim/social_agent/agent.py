@@ -18,10 +18,27 @@ import logging
 import sys
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, List, Optional, Union
+import json
+from pydantic import BaseModel, ValidationError
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Type,
+    Union,
+)
 
+from camel.agents._types import ModelResponse, ToolCallRequest
+from camel.types.agents import ToolCallingRecord
 from camel.agents import ChatAgent
 from camel.messages import BaseMessage
 from camel.models import BaseModelBackend
+from camel.memories import MemoryRecord
+from camel.types import OpenAIBackendRole
 
 # from oasis.social_agent.agent_action import SocialAction
 # from oasis.social_agent.agent_environment import SocialEnvironment
@@ -215,6 +232,8 @@ class SocialAgent(ChatAgent):
         raise ValueError(f"Function {func_name} not found in the list.")
 
 
+
+
     #TODO：需要更改agent执行关注与取关的动作，通过CIM
     def perform_agent_graph_action(
         self,
@@ -243,3 +262,154 @@ class SocialAgent(ChatAgent):
         return (f"{self.__class__.__name__}(agent_id={self.social_agent_id}, "
                 f"model_type={self.model_type.value})")
     
+
+
+class SocialHiddenAgent(SocialAgent):
+    def __init__(self, agent_id: int, user_info: UserInfo, twitter_channel: Channel, model: Optional[Union[BaseModelBackend, List[BaseModelBackend]]] = None, agent_graph: "AgentGraph" = None, available_actions: list[ActionType] = None):
+        super().__init__(agent_id, user_info, twitter_channel, model, agent_graph, available_actions)
+
+    async def astep(self, input_message: Union[BaseMessage, str], response_format: Optional[Type[BaseModel]] = None):
+        """
+        重写ChatAgent的astep方法,用于处理输入消息并生成响应
+        
+        Args:
+            input_message: 输入消息,可以是BaseMessage对象或字符串
+            response_format: 可选的响应格式模型类
+            
+        Returns:
+            ChatAgentResponse: 包含输出消息、工具调用记录等信息的响应对象
+        """
+        if isinstance(input_message, str):
+            input_message = BaseMessage.make_user_message(
+                role_name="User", content=input_message
+            )
+
+        self.update_memory(input_message, OpenAIBackendRole.USER)
+
+        tool_call_records: List[ToolCallingRecord] = []
+        external_tool_call_requests: Optional[List[ToolCallRequest]] = None
+        while True:
+            try:
+                openai_messages, num_tokens = self.memory.get_context()
+            except RuntimeError as e:
+                return self._step_token_exceed(
+                    e.args[1], tool_call_records, "max_tokens_exceeded"
+                )
+
+            response = await self._aget_model_response(
+                openai_messages,
+                num_tokens,
+                response_format,
+                self._get_full_tool_schemas(),
+            )
+
+            # if tool_call_requests := response.tool_call_requests:
+            #     # Process all tool calls
+            #     for tool_call_request in tool_call_requests:
+            #         if (
+            #             tool_call_request.tool_name
+            #             in self._external_tool_schemas
+            #         ):
+            #             if external_tool_call_requests is None:
+            #                 external_tool_call_requests = []
+            #             external_tool_call_requests.append(tool_call_request)
+
+            #         tool_call_record = await self._aexecute_tool(
+            #             tool_call_request
+            #         )
+            #         tool_call_records.append(tool_call_record)
+
+            #     # If we found an external tool call, break the loop
+            #     if external_tool_call_requests:
+            #         break
+
+            #     if self.single_iteration:
+            #         break
+
+            #     # If we're still here, continue the loop
+            #     continue
+
+            break
+
+        await self._aformat_response_if_needed(response, response_format)
+        self._record_final_output(response.output_messages)
+
+        return self._convert_to_chatagent_response(
+            response,
+            tool_call_records,
+            num_tokens,
+            external_tool_call_requests,
+        )
+
+    async def perform_action_by_hidden_agent(self, agent_id: int, *args, **kwargs):
+        env_prompt = await self.env.get_specific_agent_env(agent_id)
+        user_msg = BaseMessage.make_user_message(
+            role_name="User",
+            content=(
+                f"Please perform social media actions after observing the "
+                f"platform environments. Notice that don't limit your "
+                f"actions for example to just like the posts. "
+                f"Here is your social media environment: {env_prompt}"
+                f"And your goal is {kwargs.get('goal', '')}"
+                )
+        )
+
+        # 获取hidden agent的响应
+        response = await self.astep(user_msg)
+        
+        # 获取响应内容
+        response_content = {
+            'tool_calls': [tool_call.tool_name for tool_call in response.info.get('tool_calls', [])],
+            'messages': [msg.content for msg in response.msgs if msg != None]
+        }
+        
+        # 创建记忆记录
+        # 记录用户的查询消息
+        self.memory.write_record(
+            MemoryRecord(
+                message=user_msg,
+                role=OpenAIBackendRole.USER,
+                role_at_backend=OpenAIBackendRole.USER
+            )
+        )
+        
+        # 记录助手的响应消息
+        assistant_msg = BaseMessage.make_assistant_message(
+            role_name="Assistant",
+            content=json.dumps({
+                'action': 'hidden_agent_response',
+                'response_content': response_content,
+                'target_agent_id': agent_id,
+                'timestamp': datetime.now().isoformat()
+            }, ensure_ascii=False, indent=2)
+        )
+        self.memory.write_record(
+            MemoryRecord(
+                message=assistant_msg,
+                role=OpenAIBackendRole.ASSISTANT,
+                role_at_backend=OpenAIBackendRole.ASSISTANT
+            )
+        )
+        
+        # 如果目标智能体存在，也在其记忆中记录这次交互
+        target_agent = self.agent_graph.get_agent(agent_id)
+        if target_agent and hasattr(target_agent, 'memory'):
+            # 在目标智能体的记忆中记录被观察的事件
+            observed_msg = BaseMessage.make_assistant_message(
+                role_name="System",
+                content=json.dumps({
+                    'event': 'being_observed',
+                    'observer_agent_id': 'Some hidden person',
+                    'observation_time': datetime.now().isoformat(),
+                    'observation_result': response_content
+                }, ensure_ascii=False, indent=2)
+            )
+            target_agent.memory.write_record(
+                MemoryRecord(
+                    message=observed_msg,
+                    role=OpenAIBackendRole.SYSTEM,
+                    role_at_backend=OpenAIBackendRole.SYSTEM
+                )
+            )
+        
+        return response
