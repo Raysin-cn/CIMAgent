@@ -15,3 +15,6 @@ Simulator
 CIMagent.code-workspace
 private_config
 Platform/log
+
+DBinfo/db_analysis/*
+simu_db

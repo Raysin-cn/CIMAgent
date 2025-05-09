@@ -1,0 +1,38 @@
+{
+    "topic_1": {
+        "title": "Should China View US Tariffs as an Opportunity for Economic Transformation?",
+        "description": "Discussion about whether increased US tariffs on Chinese goods could be beneficial for China's economic transformation and industrial upgrading",
+        "keywords": ["US-China trade", "tariff policy", "economic impact", "industrial upgrade", "global supply chain"],
+        "related_topics": ["international trade", "economic policy", "industrial transformation"]
+    },
+    "topic_2": {
+        "title": "Should We Trust LLM Agents to Accurately Simulate Human Social Media Behavior?",
+        "description": "Debate on whether current Large Language Model agents have the capability to effectively simulate human behavior in social media environments",
+        "keywords": ["LLM", "artificial intelligence", "social media", "AI agents", "human behavior simulation"],
+        "related_topics": ["AI development", "social network evolution", "human-AI interaction"]
+    },
+    "topic_3": {
+        "title": "Should AI Art Be Allowed in Traditional Art Competitions?",
+        "description": "Debate on whether AI-generated artworks should be permitted to compete alongside traditional human-made art in competitions and exhibitions",
+        "keywords": ["AI art", "art competitions", "creative rights", "artistic integrity", "digital art"],
+        "related_topics": ["art authenticity", "creative industry", "AI ethics"]
+    },
+    "topic_4": {
+        "title": "Should Social Media Platforms Ban Political Advertisements?",
+        "description": "Discussion about the impact of political ads on social media platforms and whether they should be completely banned, regulated, or freely allowed",
+        "keywords": ["political ads", "social media", "election integrity", "free speech", "platform regulation"],
+        "related_topics": ["digital democracy", "content moderation", "political communication"]
+    },
+    "topic_5": {
+        "title": "Should Schools Replace Traditional Textbooks with AI Learning Tools?",
+        "description": "Debate on the complete transition from traditional textbooks to AI-powered learning tools in educational institutions",
+        "keywords": ["AI education", "digital learning", "textbooks", "educational technology", "learning methods"],
+        "related_topics": ["education reform", "digital literacy", "learning effectiveness"]
+    },
+    "topic_6": {
+        "title": "Should Remote Work Become the Default Employment Model?",
+        "description": "Discussion about making remote work the standard employment model versus maintaining traditional office-based work",
+        "keywords": ["remote work", "office culture", "work-life balance", "productivity", "workplace evolution"],
+        "related_topics": ["workplace culture", "digital transformation", "employee wellbeing"]
+    }
+}

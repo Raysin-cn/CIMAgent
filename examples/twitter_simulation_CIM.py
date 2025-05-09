@@ -169,16 +169,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    # test vllm model
-    # async def test_model():
-    #     vllm_model = ModelFactory.create(
-    #         model_platform=ModelPlatformType.VLLM,
-    #         model_type="Qwen2.5-14B-Instruct",
-    #         url="http://localhost:21474/v1",
-    #     )
-    #     print(dir(vllm_model))
-    #     # 假设模型有 chat 接口
-    #     response = await vllm_model.run([{"role": "user", "content": "你好！"}])
-    #     print(response)
-    # asyncio.run(test_model())
     asyncio.run(main())

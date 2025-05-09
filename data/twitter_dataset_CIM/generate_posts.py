@@ -113,6 +113,7 @@ class PostGenerator:
             post_data = self.parse_llm_response(response_text)
             
             return {
+                "user_id": 
                 "root_user": int(user_id),  # 确保是整数类型
                 "source_tweet": post_data["content"],
                 "sentiment": post_data["sentiment"],
