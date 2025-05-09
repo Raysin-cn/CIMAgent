@@ -54,6 +54,8 @@ def parse_args():
                       help='种子用户比例')
     parser.add_argument('--seed_algo', type=str, default="Random",
                       help='种子用户选择算法')
+    parser.add_argument('--use_hidden_control', type=bool, default=True,
+                      help='是否使用隐藏控制')
     
     # 时间戳和备份目录
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -111,6 +113,7 @@ async def main():
         f.write(f"Users File: {args.users_file}\n")
         f.write(f"Seed Selection Algorithm: {args.seed_algo}\n")
         f.write(f"Seed Rate: {args.seed_rate}\n")
+        f.write(f"Use Hidden Control: {args.use_hidden_control}\n")
         f.write(f"Total Steps: {args.total_steps}\n")
         f.write(f"Backup Interval: {args.backup_interval}\n")
         f.write(f"Backup Directory: {args.backup_dir}\n")
@@ -160,7 +163,8 @@ async def main():
 
     seeds_list_history = []
     seeds = await env.select_seeds(algos=args.seed_algo, seed_nums_rate=args.seed_rate)
-    await env.hidden_control(seeds)
+    if args.use_hidden_control:
+        await env.hidden_control(seeds)
     seeds_list_history.append(seeds)
 
     # 主模拟循环
@@ -171,7 +175,8 @@ async def main():
         if (step + 1) % args.backup_interval == 0:
             await backup_database(args.db_path, step + 1, args.backup_dir)
             seeds = await env.select_seeds(algos=args.seed_algo, seed_nums_rate=args.seed_rate)
-            await env.hidden_control(seeds)
+            if args.use_hidden_control:
+                await env.hidden_control(seeds)
             seeds_list_history.append(seeds)
 
     # 最终备份

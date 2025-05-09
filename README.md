@@ -57,6 +57,7 @@ python main.py --model_path /path/to/model --db_path /path/to/database
 - `--backup_interval`: 数据库备份间隔步数（默认: 1）
 - `--seed_rate`: 种子用户比例（默认: 0.1）
 - `--seed_algo`: 种子用户选择算法（默认: "Random"）
+- `--use_hidden_control`: 是否使用隐藏智能体控制（默认: True）
 
 ## 数据备份
 
