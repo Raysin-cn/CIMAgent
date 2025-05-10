@@ -48,7 +48,7 @@ def parse_args():
                       help='总模拟步数')
     parser.add_argument('--backup_interval', type=int, default=1,
                       help='数据库备份间隔步数')
-    parser.add_argument('--use_hidden_control', type=bool, default=False,
+    parser.add_argument('--use_hidden_control', type=str, default="False",
                       help='是否使用隐藏控制')
     parser.add_argument('--seed_rate', type=float, default=0.1,
                       help='种子用户比例')
@@ -161,7 +161,7 @@ async def main():
 
     await backup_database(args.db_path, 0, args.backup_dir)
 
-    if args.use_hidden_control:
+    if args.use_hidden_control == "True":
         seeds_list_history = []
         seeds = await env.select_seeds(algos=args.seed_algo, seed_nums_rate=args.seed_rate)
         await env.hidden_control(seeds)
@@ -174,7 +174,7 @@ async def main():
         
         if (step + 1) % args.backup_interval == 0:
             await backup_database(args.db_path, step + 1, args.backup_dir)
-            if args.use_hidden_control:
+            if args.use_hidden_control == "True":
                 seeds = await env.select_seeds(algos=args.seed_algo, seed_nums_rate=args.seed_rate)
                 await env.hidden_control(seeds)
                 seeds_list_history.append(seeds)
