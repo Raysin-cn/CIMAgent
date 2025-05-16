@@ -350,25 +350,15 @@ class AgentGraph():
         # 获取邻接矩阵
         adj_matrix = self.get_adjacency_matrix()
         
+        # 使用Diffusion类选择种子节点
+        selected_seeds = self.diffusion.select_seeds(adj_matrix, seed_nums, method=algos)
+        
         # 获取所有节点ID列表
         if self.backend == "igraph":
             node_ids = [v.index for v in self.graph.vs]
         else:
             node_ids = self.graph.get_all_nodes()
-            
-        # 根据不同算法选择种子节点
-        if algos == "DeepIM":
-            # 使用DeepIM算法选择种子节点
-            selected_seeds = self.diffusion.select_seeds_deepim(adj_matrix, seed_nums)
-        elif algos == "DegreeDiscount":
-            # 使用度折扣算法选择种子节点
-            selected_seeds = self.diffusion.select_seeds_degree_discount(adj_matrix, seed_nums)
-        elif algos == "Random":
-            # 随机选择种子节点
-            selected_seeds = np.random.choice(len(node_ids), size=seed_nums, replace=False)
-        else:
-            raise ValueError(f"Unsupported algorithm: {algos}")
-            
+        
         # 将选中的索引转换为实际的节点ID
         selected_node_ids = [node_ids[idx] for idx in selected_seeds]
         

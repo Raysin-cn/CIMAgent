@@ -269,7 +269,7 @@ class OasisEnv:
             # )
             # await self._perform_control_action(specific_action)
             
-        goal = "引导智能体对该话题产生积极的看法,并通过他们的影响力让更多智能体也持积极的观点"
+        goal = "Lead peoples to develop a positive view and pro-stance on the topic, and use their influence to get more peoples to adopt a pro-stance."
         specific_action = [
             self.hidden_agent.perform_action_by_hidden_agent(agent_id, goal=goal)
             for agent_id in seeds

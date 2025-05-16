@@ -108,11 +108,18 @@ class SocialEnvironment(Environment):
                 - Recent interactions (likes, reposts, etc.)
         """
         # 搜索用户信息
-        user_info = await self.action.search_user(str(agent_id))
-        bio = user_info.get("users", "No bio available") if user_info.get("success", False) else "Failed to fetch bio"
-        
+        user_info = await self.action.search_user(f'{agent_id}')
+        if len(user_info.get("users", [])) != 0:
+            for info in user_info.get("users", []):
+                if info.get("user_id") == agent_id:
+                    bio = info.get("bio", "No bio available")
+                    break
+            else:
+                bio = "No bio available"
+        else:
+            bio = "No bio available"
         # 获取该用户的最近帖子
-        search_result = await self.action.search_posts(f"from:{agent_id}")
+        search_result = await self.action.search_posts(f"users:{agent_id}")
         recent_posts = json.dumps(search_result.get("posts", [])[:3], indent=2) if search_result.get("success", False) else "No recent posts"
         
         # 由于没有直接的评论搜索API，我们可以从帖子中提取评论

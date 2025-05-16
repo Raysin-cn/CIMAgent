@@ -20,7 +20,10 @@ class PostGenerator:
             model_platform=ModelPlatformType.VLLM,
             model_type=model_path,
             url=model_url,
-            model_config_dict={"max_tokens": 5000}
+            model_config_dict={
+                "max_tokens": 5000,
+                "temperature": 0.7  # 设置适中的温度值，平衡创造性和一致性
+            }
         )
         # 分析模型，增加max_tokens以确保完整输出
         self.analysis_model = ModelFactory.create(
@@ -75,19 +78,19 @@ Topic: {topic_info['title']}
 Topic Description: {topic_info['description']}
 
 Instructions:
-1. First, analyze the overall stance (support/oppose/neutral) towards the topic
+1. First, analyze the overall stance (pro/con/neutral) towards the topic
 2. Then, analyze the emotional sentiment (positive/negative/neutral)
 3. Return ONLY a JSON object in this exact format, nothing else:
 {{
-    "stance": "support/oppose/neutral",
+    "stance": "pro/con/neutral",
     "sentiment": "positive/negative/neutral"
 }}
 
 IMPORTANT: DO NOT include any explanations, thoughts, or analysis. ONLY return the JSON object. NO additional text before or after the JSON.
 
 Stance Criteria:
-- 'support': Clearly agrees with or advocates for the proposal/change mentioned in the topic
-- 'oppose': Clearly disagrees with or argues against the proposal/change
+- 'pro': Clearly agrees with or advocates for the proposal/change mentioned in the topic
+- 'con': Clearly disagrees with or argues against the proposal/change
 - 'neutral': Discusses both sides, asks questions, or presents balanced viewpoints
 
 Sentiment Criteria:
@@ -106,7 +109,7 @@ Sentiment Criteria:
             # },
             # {
             #     "role": "assistant",
-            #     "content": '{"stance": "support", "sentiment": "positive"}'
+            #     "content": '{"stance": "pro", "sentiment": "positive"}'
             # },
             # {
             #     "role": "user", 
@@ -114,7 +117,7 @@ Sentiment Criteria:
             # },
             # {
             #     "role": "assistant",
-            #     "content": '{"stance": "support", "sentiment": "negative"}'
+            #     "content": '{"stance": "pro", "sentiment": "negative"}'
             # },
             {
                 "role": "user", 
@@ -125,7 +128,7 @@ Sentiment Criteria:
         analysis = response.choices[0].message.content.strip()
         
         # 使用正则表达式提取stance和sentiment
-        stance_pattern = r'"stance":\s*"(support|oppose|neutral)"'
+        stance_pattern = r'"stance":\s*"(pro|con|neutral)"'
         sentiment_pattern = r'"sentiment":\s*"(positive|negative|neutral)"'
         
         stance_match = re.search(stance_pattern, analysis)
@@ -251,13 +254,13 @@ async def main():
                       help='Directory to save generated posts')
     parser.add_argument('--list_topics', action='store_true',
                       help='List all available topics and exit')
-    parser.add_argument('--topic_id', type=str, default='topic_3',
+    parser.add_argument('--topic_id', type=str, default='topic_5',
                       help='Specific topic ID to generate posts for')
     parser.add_argument('--model_path', type=str,
-                      default='/data/model/Qwen3-14B',
+                      default='/home/models/Qwen3-8B',
                       help='Path to the language model')
     parser.add_argument('--model_url', type=str,
-                      default='http://localhost:21474/v1',
+                      default='http://0.0.0.0:12345/v1',
                       help='URL for the model service')
     
     args = parser.parse_args()

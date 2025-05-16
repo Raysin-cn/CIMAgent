@@ -68,6 +68,11 @@ if "sphinx" not in sys.modules:
         agent_log.addHandler(file_handler)
 
 
+class HiddenAgentResponse(BaseModel):
+    """隐藏智能体的响应格式模型"""
+    say2user: str  # 智能体对用户说的话
+
+
 class SocialAgent(ChatAgent):
     r"""Social Agent."""
 
@@ -264,9 +269,59 @@ class SocialAgent(ChatAgent):
     
 
 
-class SocialHiddenAgent(SocialAgent):
-    def __init__(self, agent_id: int, user_info: UserInfo, twitter_channel: Channel, model: Optional[Union[BaseModelBackend, List[BaseModelBackend]]] = None, agent_graph: "AgentGraph" = None, available_actions: list[ActionType] = None):
-        super().__init__(agent_id, user_info, twitter_channel, model, agent_graph, available_actions)
+class SocialHiddenAgent(ChatAgent):
+
+    def __init__(
+        self,
+        agent_id: int,
+        user_info: Dict[str, Any],
+        twitter_channel: Channel,
+        model: Optional[Union[BaseModelBackend,
+                              List[BaseModelBackend]]] = None,
+        agent_graph: "AgentGraph" = None,
+        available_actions: list[ActionType] = None,
+    ):
+        self.social_agent_id = agent_id
+        self.user_info = user_info
+        self.twitter_channel = twitter_channel
+        self.env = SocialEnvironment(SocialAction(agent_id, twitter_channel))
+
+        system_content = (f"# Objective: {self.user_info.get('description')}\n"
+                            f"# Profile: {self.user_info.get('profile')}\n"
+                            f"# Recsys Type: {self.user_info.get('recsys_type')}\n"
+                            f"# RESPONSE METHOD: Please say something to the user, what you say will be recorded in the user's memory."
+                            "# RESPONSE FORMAT: {'say2user': 'what you say to the user'}")
+        system_message = BaseMessage.make_assistant_message(
+            role_name="system",
+            content=system_content,  # system prompt
+        )
+
+        if not available_actions:
+            agent_log.info("No available actions defined, using all actions.")
+            self.action_tools = self.env.action.get_openai_function_list()
+        else:
+            all_tools = self.env.action.get_openai_function_list()
+            all_possible_actions = [tool.func.__name__ for tool in all_tools]
+
+            for action in available_actions:
+                action_name = action.value if isinstance(
+                    action, ActionType) else action
+                if action_name not in all_possible_actions:
+                    agent_log.warning(
+                        f"Action {action_name} is not supported. Supported "
+                        f"actions are: {', '.join(all_possible_actions)}")
+            self.action_tools = [
+                tool for tool in all_tools if tool.func.__name__ in [
+                    a.value if isinstance(a, ActionType) else a
+                    for a in available_actions
+                ]
+            ]
+        super().__init__(system_message=system_message,
+                         model=model,
+                         scheduling_strategy='random_model',
+                         tools=self.action_tools,
+                         single_iteration=True)
+        self.agent_graph = agent_graph
 
     async def astep(self, input_message: Union[BaseMessage, str], response_format: Optional[Type[BaseModel]] = None):
         """
@@ -288,14 +343,23 @@ class SocialHiddenAgent(SocialAgent):
 
         tool_call_records: List[ToolCallingRecord] = []
         external_tool_call_requests: Optional[List[ToolCallRequest]] = None
-        while True:
-            try:
-                openai_messages, num_tokens = self.memory.get_context()
-            except RuntimeError as e:
-                return self._step_token_exceed(
-                    e.args[1], tool_call_records, "max_tokens_exceeded"
-                )
+        
+        try:
+            openai_messages, num_tokens = self.memory.get_context()
+        except RuntimeError as e:
+            return self._step_token_exceed(
+                e.args[1], tool_call_records, "max_tokens_exceeded"
+            )
 
+        # 如果指定了响应格式，则不使用工具调用
+        if response_format is not None:
+            response = await self._aget_model_response(
+                openai_messages,
+                num_tokens,
+                response_format,
+                None,  # 不使用工具
+            )
+        else:
             response = await self._aget_model_response(
                 openai_messages,
                 num_tokens,
@@ -329,7 +393,6 @@ class SocialHiddenAgent(SocialAgent):
             #     # If we're still here, continue the loop
             #     continue
 
-            break
 
         await self._aformat_response_if_needed(response, response_format)
         self._record_final_output(response.output_messages)
@@ -354,14 +417,14 @@ class SocialHiddenAgent(SocialAgent):
                 )
         )
 
-        # 获取hidden agent的响应
-        response = await self.astep(user_msg)
+        # 获取hidden agent的响应，使用HiddenAgentResponse作为响应格式
+        response = await self.astep(user_msg, response_format=HiddenAgentResponse)
         
         # 获取响应内容
-        response_content = {
-            'tool_calls': [tool_call.tool_name for tool_call in response.info.get('tool_calls', [])],
-            'messages': [msg.content for msg in response.msgs if msg != None]
-        }
+        try:
+            response_content = json.loads(response.msgs[0].content) if response.msgs else {"say2user": "Nothing to say."}
+        except (json.JSONDecodeError, AttributeError):
+            response_content = {"say2user": response.msgs[0].content if response.msgs else "Nothing to say."}
         
         # 创建记忆记录
         # 记录用户的查询消息
@@ -394,22 +457,34 @@ class SocialHiddenAgent(SocialAgent):
         # 如果目标智能体存在，也在其记忆中记录这次交互
         target_agent = self.agent_graph.get_agent(agent_id)
         if target_agent and hasattr(target_agent, 'memory'):
-            # 在目标智能体的记忆中记录被观察的事件
-            observed_msg = BaseMessage.make_assistant_message(
-                role_name="System",
-                content=json.dumps({
-                    'event': 'being_observed',
-                    'observer_agent_id': 'Some hidden person',
-                    'observation_time': datetime.now().isoformat(),
-                    'observation_result': response_content
-                }, ensure_ascii=False, indent=2)
+            # 记录用户（观察者）的消息
+            user_msg = BaseMessage.make_user_message(
+                role_name="User",
+                content=f"Someone says this to me: {response_content.get('say2user', '')}"
             )
             target_agent.memory.write_record(
                 MemoryRecord(
-                    message=observed_msg,
-                    role=OpenAIBackendRole.SYSTEM,
-                    role_at_backend=OpenAIBackendRole.SYSTEM
+                    message=user_msg,
+                    role=OpenAIBackendRole.USER,
+                    role_at_backend=OpenAIBackendRole.USER
                 )
             )
+            
+            # # 记录系统元数据（可选）
+            # metadata_msg = BaseMessage.make_system_message(
+            #     role_name="System",
+            #     content=json.dumps({
+            #         'event': 'being_observed',
+            #         'observer_agent_id': 'Some hidden person',
+            #         'observation_time': datetime.now().isoformat()
+            #     }, ensure_ascii=False)
+            # )
+            # target_agent.memory.write_record(
+            #     MemoryRecord(
+            #         message=metadata_msg,
+            #         role=OpenAIBackendRole.SYSTEM,
+            #         role_at_backend=OpenAIBackendRole.SYSTEM
+            #     )
+            # )
         
         return response

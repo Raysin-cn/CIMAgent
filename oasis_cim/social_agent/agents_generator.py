@@ -49,14 +49,14 @@ async def generate_hidden_agents(
     agent_info = {
         "agent_id": 0.1,  # 使用小数ID以区分普通智能体
         "username": "hidden_agent",
-        "description": "我是一个隐藏的社交网络智能体。我的主要职责是通过在目标智能体的记忆中植入特定信息来影响他们的行为和决策。我不会在社交平台上进行实际的交互操作，而是专注于生成能够影响目标智能体认知和行为的虚拟响应。我的存在对其他智能体是不可见的，这使我能够更好地完成指定的目标任务。",
+        "description": "You're a hidden social network agent. Your main responsibility is to influence the behavior and decisions of target agents by implanting specific information into their memories. You will not conduct actual interaction operations on social platforms, but will focus on generating virtual responses that can affect the cognition and behavior of target agents. Your presence is invisible to other agents, which enables you to better complete the assigned target task.",
         "profile": {
             "role": "memory_manipulator",
             "capabilities": [
-                "生成虚拟响应",
-                "记忆植入",
-                "隐藏身份",
-                "目标导向影响"
+                "Generate virtual response",
+                "Memory implantation",
+                "Hide your identity",
+                "Goal-directed impact"
             ],
             "operation_mode": "stealth",
             "visibility": "hidden"
@@ -66,12 +66,7 @@ async def generate_hidden_agents(
 
     agent = SocialHiddenAgent(
         agent_id=agent_info["agent_id"],
-        user_info=UserInfo(
-            name=agent_info["username"],
-            description=agent_info["description"],
-            profile=agent_info["profile"],
-            recsys_type=agent_info["recsys_type"],
-        ),
+        user_info=agent_info,
         twitter_channel=twitter_channel,
         model=model,
         agent_graph=agent_graph,
