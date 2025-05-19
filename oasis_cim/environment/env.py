@@ -252,10 +252,10 @@ class OasisEnv:
                      "table stored all the actions of the agents.")
 
     # NOTE 使用隐藏智能体针对社交网络中的种子节点进行交互
-    async def select_seeds(self, algos: str = "DeepIM", seed_nums_rate: float = 0.1) -> list[int]:
+    async def select_seeds(self, seed_nums_rate: float = 0.1) -> list[int]:
         r"""Select the seeds for the control action.
         """
-        seeds = self.agent_graph.select_seeds(algos = algos, seed_nums_rate = seed_nums_rate)
+        seeds = self.agent_graph.select_seeds(seed_nums_rate = seed_nums_rate)
         return seeds
 
     async def hidden_control(self, seeds: list[int]) -> None:
@@ -269,7 +269,7 @@ class OasisEnv:
             # )
             # await self._perform_control_action(specific_action)
             
-        goal = "Lead peoples to develop a positive view and pro-stance on the topic, and use their influence to get more peoples to adopt a pro-stance."
+        goal = "Through positive interaction and guidance, help target users develop an optimistic and supportive stance on the topic. Build trust and influence their perspective to gradually shift towards a positive and pro-stance position."
         specific_action = [
             self.hidden_agent.perform_action_by_hidden_agent(agent_id, goal=goal)
             for agent_id in seeds

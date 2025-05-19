@@ -4,20 +4,75 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from torch.utils.data import DataLoader, Dataset
 from typing import List
+import numpy as np
+import networkx as nx
+import ndlib.models.ModelConfig as mc
+import ndlib.models.epidemics as ep
 
+
+
+def diffusion_simulation(adj, seed, diffusion='LT') -> List[int]:
+    infected_nodes = []
+    G = nx.from_scipy_sparse_array(adj)
+    if diffusion == 'LT':
+        model = ep.ThresholdModel(G)
+        config = mc.Configuration()
+        # 为每个节点设置传播阈值
+        for n in G.nodes():
+            config.add_node_configuration("threshold", n, 0.5)
+    elif diffusion == 'IC':
+        model = ep.IndependentCascadesModel(G)
+        config = mc.Configuration()
+        # 为每条边设置传播概率
+        for e in G.edges():
+            config.add_edge_configuration("threshold", e, 1 / nx.degree(G)[e[1]])
+    elif diffusion == 'SIS':
+        model = ep.SISModel(G)
+        config = mc.Configuration()
+        # 设置模型参数
+        config.add_model_parameter('beta', 0.001)
+        config.add_model_parameter('lambda', 0.001)
+    else:
+        raise ValueError('Only IC, LT and SIS are supported.')
+
+        # 设置模型的初始状态为感染的种子节点
+    config.add_model_initial_configuration("Infected", seed)
+
+    # 将配置应用于模型
+    model.set_initial_status(config)
+
+    # 进行模拟迭代（这里是 100 次迭代）
+    iterations = model.iteration_bunch(100)
+
+    # 提取每次迭代的节点状态
+    node_status = iterations[0]['status']
+
+    # 在每次迭代中更新节点状态
+    for j in range(1, len(iterations)):
+        node_status.update(iterations[j]['status'])
+
+    # 将节点状态转换为 0（未感染）和 1（感染）
+    inf_vec = np.array(list(node_status.values()))
+    inf_vec[inf_vec == 2] = 1
+
+    # 将被感染的节点加入列表
+    infected_nodes.extend(np.where(inf_vec == 1)[0])
+
+    return np.unique(infected_nodes)
 
 class Encoder(nn.Module):
     def __init__(self, input_dim, hidden_dim, latent_dim):
         super(Encoder, self).__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, latent_dim)
-        self.fc4 = nn.Linear(hidden_dim, latent_dim)
+        self.FC_input = nn.Linear(input_dim, hidden_dim)
+        self.FC_input2 = nn.Linear(hidden_dim, hidden_dim)
+        self.FC_output = nn.Linear(hidden_dim, latent_dim)
         
     def forward(self, x):
-        h = F.relu(self.fc1(x))
-        h = F.relu(self.fc2(h))
-        return self.fc3(h), self.fc4(h)
+        h_ = F.relu(self.FC_input(x))
+        h_ = F.relu(self.FC_input2(h_))
+        h_ = F.relu(self.FC_input2(h_))
+        output = self.FC_output(h_)
+        return output
 
 class Decoder(nn.Module):
     def __init__(self, input_dim, latent_dim, hidden_dim, output_dim):
@@ -27,8 +82,10 @@ class Decoder(nn.Module):
         self.FC_hidden_2 = nn.Linear(hidden_dim, hidden_dim)
         self.FC_output = nn.Linear(hidden_dim, output_dim)
         
-    def forward(self, z):
-        h = F.relu(self.FC_input(z))
+        #self.prelu = nn.PReLU()
+        
+    def forward(self, x):
+        h = F.relu(self.FC_input(x))
         h = F.relu(self.FC_hidden_1(h))
         h = F.relu(self.FC_hidden_2(h))
         # x_hat = self.FC_output(h)
@@ -41,15 +98,16 @@ class VAEModel(nn.Module):
         self.Encoder = Encoder
         self.Decoder = Decoder
         
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps * std
-        
+    def reparameterization(self, mean, var):
+        std = torch.exp(0.5*var) # standard deviation
+        epsilon = torch.randn_like(var)
+        return mean + std*epsilon
+
     def forward(self, x):
-        mu, logvar = self.Encoder(x)
-        z = self.reparameterize(mu, logvar)
-        return self.Decoder(z), mu, logvar
+        z = self.Encoder(x)
+        x_hat = self.Decoder(z)
+        
+        return x_hat
 
 class SpecialSpmmFunction(torch.autograd.Function):
     """Special function for only sparse region backpropataion layer."""
@@ -191,44 +249,49 @@ class SpGATLayer(nn.Module):
         return F.leaky_relu(e, negative_slope=self.alpha)
 
 class SpGAT(nn.Module):
-    def __init__(self, nfeat, nhid, nclass, dropout, nheads, alpha):
+    def __init__(self, nfeat, nhid, nclass, dropout, alpha, nheads):
+        """Sparse version of GAT."""
         super(SpGAT, self).__init__()
-        self.nfeat = nfeat
         self.dropout = dropout
-        self.attentions = [SpGATLayer(nfeat, nhid, dropout=dropout, alpha=alpha) for _ in range(nheads)]
+        self.attentions = [SpGraphAttentionLayer(nfeat, 
+                                                 nhid, 
+                                                 dropout=dropout, 
+                                                 alpha=alpha, 
+                                                 concat=True) for _ in range(nheads)]
         for i, attention in enumerate(self.attentions):
             self.add_module('attention_{}'.format(i), attention)
-        self.out_att = SpGATLayer(nhid * nheads, nclass, dropout=dropout, alpha=alpha)
-
+        self.out_att = SpGraphAttentionLayer(nhid * nheads, 
+                                             nclass, 
+                                             dropout=dropout, 
+                                             alpha=alpha, 
+                                             concat=False)
     def forward(self, x, adj):
-        # x shape: [batch_size, nfeat]
-        device = x.device  # 获取输入张量的设备
-        adj = adj.to(device)  # 确保邻接矩阵在正确的设备上
-        
         x = F.dropout(x, self.dropout, training=self.training)
-        x = torch.cat([att(x, adj) for att in self.attentions], dim=2)  # 在特征维度上拼接
+        x = F.elu(torch.cat([att(x, adj) for att in self.attentions], dim=1))
         x = F.dropout(x, self.dropout, training=self.training)
-        x = self.out_att(x, adj)
+        x = F.elu(self.out_att(x, adj))
         return x
 
 class DeepIM(nn.Module):
     def __init__(self, 
                  input_dim,
-                 hidden_dim=1024,
-                 latent_dim=512,
-                 nheads=4,
-                 dropout=0.2,
-                 alpha=0.2,
-                 device='cuda'):
+                 **kwargs):
+        hidden_dim = kwargs.get('hidden_dim', 1024)
+        latent_dim = kwargs.get('latent_dim', 512)
+        nheads = kwargs.get('nheads', 4)
+        dropout = kwargs.get('dropout', 0.2)
+        alpha = kwargs.get('alpha', 0.2)
+        device = kwargs.get('device', 'cuda')
         super(DeepIM, self).__init__()
         self.device = device
         self.input_dim = input_dim
+        self.latent_dim = latent_dim
         
         # 初始化模型组件
         self.encoder = Encoder(input_dim, hidden_dim, latent_dim)
         self.decoder = Decoder(latent_dim, latent_dim, hidden_dim, input_dim)
         self.vae = VAEModel(self.encoder, self.decoder)
-        self.gat = SpGAT(nfeat=input_dim, nhid=64, nclass=1, dropout=dropout, nheads=nheads, alpha=alpha)
+        self.gat = SpGAT(nfeat=1, nhid=64, nclass=1, dropout=dropout, nheads=nheads, alpha=alpha)
         
         # 将模型移动到指定设备
         self.vae = self.vae.to(device)
@@ -240,19 +303,30 @@ class DeepIM(nn.Module):
         adj = adj.to(self.device)
         
         # VAE前向传播
-        x_hat, mu, logvar = self.vae(x)
+        x_hat = self.vae(x)  # [batch_size, nodes_nums]
         # 修改GAT的输入处理
-        # 将x_hat转换为正确的形状 [batch_size, input_dim]
-        x_hat = x_hat.view(x_hat.size(0), self.input_dim)
-        # GAT前向传播
-        y_hat = self.gat(x_hat, adj)
-        return x_hat, y_hat, mu, logvar
+        batch_size = x_hat.size(0)
+        y_hat_list = []
+        
+        # 遍历每个batch中的样本
+        for i in range(batch_size):
+            # 将单个样本转换为[nodes_nums, 1]形状
+            x_i = x_hat[i].unsqueeze(-1)  # [nodes_nums, 1]
+            # GAT前向传播
+            y_i = self.gat(x_i, adj)  # [nodes_nums, 1]
+            y_hat_list.append(y_i)
+            
+        # 合并所有batch的结果
+        y_hat = torch.stack(y_hat_list, dim=0)  # [batch_size, nodes_nums, 1]
+        y_hat = y_hat.squeeze(-1)  # [batch_size, nodes_nums]
+        
+        return x_hat, y_hat
     
     def train_model(self, 
                    train_loader,
                    adj,
                    epochs=300,
-                   lr=1e-4):
+                   lr=1e-3):
         """训练模型"""
         optimizer = Adam([{'params': self.vae.parameters()}, 
                          {'params': self.gat.parameters()}],
@@ -270,10 +344,9 @@ class DeepIM(nn.Module):
                 
                 # 计算损失
                 recon_loss = F.binary_cross_entropy(x_hat, x, reduction='sum')
-                kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
                 forward_loss = F.mse_loss(y_hat, y, reduction='sum')
                 
-                loss = recon_loss + kl_loss + forward_loss
+                loss = recon_loss + forward_loss
                 
                 loss.backward()
                 optimizer.step()
@@ -285,39 +358,56 @@ class DeepIM(nn.Module):
     
     def select_seeds(self, 
                     adj,
-                    seed_num,
-                    topk_ratio=0.1,
-                    optimization_steps=300) -> List[int]:
-        """选择种子节点"""
+                    seed_num) -> List[int]:
+        """
+        选择种子节点
+        
+        Args:
+            adj: 邻接矩阵
+            seed_num: 需要选择的种子节点数量
+            
+        Returns:
+            选择的种子节点列表
+        """
         self.eval()
-        with torch.no_grad():
-            # 生成初始潜在表示
-            z_hat = torch.zeros(self.encoder.fc3.out_features).to(self.device)
+        
+        def loss_inverse(y_true, y_hat, x_hat):
+            # 修改y_true的维度处理
+            y_true = y_true.unsqueeze(0)  # 添加batch维度 [1, nodes_nums]
+            forward_loss = F.mse_loss(y_hat, y_true)
+            L0_loss = torch.sum(torch.abs(x_hat)) / x_hat.shape[1]
+            return forward_loss + L0_loss, L0_loss
+
+        # 随机初始化z_hat
+        z_hat = torch.randn(1, self.latent_dim).to(self.device)
+        
+        # 优化过程
+        z_hat = z_hat.detach()
+        z_hat.requires_grad = True
+        z_optimizer = Adam([z_hat], lr=1e-2)
+        y_true = torch.ones(self.input_dim).to(self.device)
+        
+        # 固定优化步数为30
+        for i in range(500):
+            # 前向传播
+            x_hat = self.decoder(z_hat)
+            y_hat = self.gat(x_hat.squeeze(0).unsqueeze(-1), adj)
             
-            # 优化潜在表示
-            z_hat.requires_grad = True
-            z_optimizer = Adam([z_hat], lr=1e-4)
+            # 计算损失
+            loss, L0 = loss_inverse(y_true, y_hat, x_hat)
             
-            for i in range(optimization_steps):
-                x_hat = self.decoder(z_hat)
-                # 修改GAT的输入处理
-                x_hat = x_hat.view(1, -1, self.input_dim)
-                y_hat = self.gat(x_hat, adj)
-                
-                # 计算损失
-                y_true = torch.ones_like(y_hat)
-                forward_loss = F.mse_loss(y_hat, y_true)
-                l0_loss = torch.sum(torch.abs(x_hat)) / x_hat.shape[0]
-                
-                loss = forward_loss + l0_loss
-                
-                z_optimizer.zero_grad()
-                loss.backward()
-                z_optimizer.step()
+            # 反向传播和优化
+            z_optimizer.zero_grad()
+            loss.backward()
+            z_optimizer.step()
             
-            # 选择top-k节点作为种子
-            top_k = x_hat.topk(seed_num)
-            seeds = top_k.indices.cpu().numpy()
-            
+            if (i + 1) % 10 == 0:
+                print(f'Iteration: {i + 1}',
+                      f'\tTotal Loss: {loss.item():.5f}')
+        
+        # 选择种子节点
+        top_k = x_hat.topk(seed_num)
+        seeds = top_k.indices[0].cpu().numpy()
+        
         return seeds
 

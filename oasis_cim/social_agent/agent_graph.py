@@ -329,7 +329,7 @@ class AgentGraph():
             # 创建CSR格式的稀疏矩阵
             return sp.csr_matrix((data, (row, col)), shape=(num_nodes, num_nodes))
 
-    def select_seeds(self, algos: str = "DeepIM", seed_nums_rate: float = 0.1) -> list[int]:
+    def select_seeds(self, seed_nums_rate: float = 0.1) -> list[int]:
         """
         选择种子节点
         Select seed nodes
@@ -351,7 +351,10 @@ class AgentGraph():
         adj_matrix = self.get_adjacency_matrix()
         
         # 使用Diffusion类选择种子节点
-        selected_seeds = self.diffusion.select_seeds(adj_matrix, seed_nums, method=algos)
+        if self.diffusion != "Random":
+            selected_seeds = self.diffusion.select_seeds(adj_matrix, seed_nums)
+        else:
+            selected_seeds = np.random.choice(np.arange(0, num_nodes), size=seed_nums, replace=False).tolist()
         
         # 获取所有节点ID列表
         if self.backend == "igraph":

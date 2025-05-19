@@ -119,9 +119,15 @@ class SocialEnvironment(Environment):
         else:
             bio = "No bio available"
         # 获取该用户的最近帖子
-        search_result = await self.action.search_posts(f"users:{agent_id}")
-        recent_posts = json.dumps(search_result.get("posts", [])[:3], indent=2) if search_result.get("success", False) else "No recent posts"
-        
+        search_result = await self.action.search_posts(f"{agent_id}")
+        recent_posts = []
+        if len(search_result.get("posts", [])) != 0:
+            for posts in search_result.get("posts"):
+                if posts['user_id'] == agent_id:
+                    recent_posts.append(posts)
+        if len(recent_posts) > 3:
+            recent_posts = recent_posts[-3:]
+
         # 由于没有直接的评论搜索API，我们可以从帖子中提取评论
         recent_comments = "Comments information not available"  # 这部分需要额外的API支持
         

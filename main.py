@@ -30,7 +30,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Twitter社交网络模拟程序')
     
     # 数据相关参数
-    parser.add_argument('--topic_file', type=str, default="data/CIM_experiments/posts/posts_topic_4.csv",
+    parser.add_argument('--topic_file', type=str, default="data/CIM_experiments/posts/posts_topic_1.csv",
                       help='话题数据文件路径')
     parser.add_argument('--users_file', type=str, default="data/CIM_experiments/users_info.csv",
                       help='用户数据文件路径')
@@ -46,7 +46,7 @@ def parse_args():
                       help='第二个模型的最大token数')
     
     # 模拟相关参数
-    parser.add_argument('--total_steps', type=int, default=24,
+    parser.add_argument('--total_steps', type=int, default=12,
                       help='总模拟步数')
     parser.add_argument('--backup_interval', type=int, default=1,
                       help='数据库备份间隔步数')
@@ -154,25 +154,25 @@ async def main():
     # 读取话题数据
     topics_df = pd.read_csv(args.topic_file)
     
-    # # 创建初始帖子
-    # initial_actions = []
-    # for idx, row in topics_df.iterrows():
-    #     root_user_id = int(row['user_id'])
-    #     agent_id = user_to_agent.get(root_user_id, idx % len(users_df))
+    # 创建初始帖子
+    initial_actions = []
+    for idx, row in topics_df.iterrows():
+        root_user_id = int(row['user_id'])
+        agent_id = user_to_agent.get(root_user_id, idx % len(users_df))
         
-    #     action = SingleAction(
-    #         agent_id=agent_id,
-    #         action=ActionType.CREATE_POST,
-    #         args={"content": row["content"]}
-    #     )
-    #     initial_actions.append(action)
+        action = SingleAction(
+            agent_id=agent_id,
+            action=ActionType.CREATE_POST,
+            args={"content": row["content"]}
+        )
+        initial_actions.append(action)
 
-    # # 执行初始动作
-    # env_actions = EnvAction(
-    #     activate_agents=list(range(len(users_df))),
-    #     intervention=initial_actions
-    # )
-    # await env.step(env_actions)
+    # 执行初始动作
+    env_actions = EnvAction(
+        activate_agents=list(range(len(users_df))),
+        intervention=initial_actions
+    )
+    await env.step(env_actions)
     
 
     await backup_database(args.db_path, 0, args.backup_dir)
@@ -181,42 +181,12 @@ async def main():
         seeds_list_history = []
         
         if args.seed_algo == "DeepIM":
-            # 获取邻接矩阵
-            adj_matrix = env.agent_graph.get_adjacency_matrix()
-            
-            # DeepIM模型路径
-            model_path = os.path.join(args.deepim_model_dir, f"deepim_model_{adj_matrix.shape[0]}.pt")
-            
-            if args.train_deepim == "True" or not os.path.exists(model_path):
-                print("训练DeepIM模型...")
-                # 训练模型
-                model = env.agent_graph.diffusion.train_deepim(
-                    adj_matrix=adj_matrix,
-                    num_samples=args.deepim_samples
-                )
-                # 保存模型
-                os.makedirs(args.deepim_model_dir, exist_ok=True)
-                torch.save(model.state_dict(), model_path)
-            else:
-                print("加载预训练的DeepIM模型...")
-                # 加载预训练模型
-                model = DeepIM(
-                    input_dim=adj_matrix.shape[0],
-                    hidden_dim=1024,
-                    latent_dim=512,
-                    nheads=4,
-                    dropout=0.2,
-                    alpha=0.2,
-                    device='cuda' if torch.cuda.is_available() else 'cpu'
-                )
-                model.load_state_dict(torch.load(model_path))
-                model.eval()
-            
-            # 将模型保存到diffusion实例中
-            env.agent_graph.diffusion.model = model
+            env.agent_graph.diffusion.load_model_params('deepim', 'models/deepim/')
+        else:
+            env.agent_graph.diffusion = 'Random'
         
         # 选择种子节点
-        seeds = await env.select_seeds(algos=args.seed_algo, seed_nums_rate=args.seed_rate)
+        seeds = await env.select_seeds(seed_nums_rate=args.seed_rate)
         await env.hidden_control(seeds)
         seeds_list_history.append(seeds)
 
@@ -228,7 +198,7 @@ async def main():
         if (step + 1) % args.backup_interval == 0:
             await backup_database(args.db_path, step + 1, args.backup_dir)
             if args.use_hidden_control == "True":
-                seeds = await env.select_seeds(algos=args.seed_algo, seed_nums_rate=args.seed_rate)
+                seeds = await env.select_seeds(seed_nums_rate=args.seed_rate)
                 await env.hidden_control(seeds)
                 seeds_list_history.append(seeds)
 

@@ -13,4 +13,22 @@ python main.py \
     --users_file "data/CIM_experiments/users_info.csv"\
     --use_hidden_control "True" \
     --seed_rate 0.1 \
-    --seed_algo "Random" \
+    --seed_algo "DeepIM" \
+
+python main.py \
+    --model_path /data/model/Qwen3-14B \
+    --model_url "http://localhost:12345/v1" \
+    --topic_file "data/CIM_experiments/posts/posts_topic_4.csv" \
+    --users_file "data/CIM_experiments/users_info.csv"\
+    --use_hidden_control "True" \
+    --seed_rate 0.1 \
+    --seed_algo "DeepIM" \
+
+python main.py \
+    --model_path /data/model/Qwen3-14B \
+    --model_url "http://localhost:12345/v1" \
+    --topic_file "data/CIM_experiments/posts/posts_topic_5.csv" \
+    --users_file "data/CIM_experiments/users_info.csv"\
+    --use_hidden_control "True" \
+    --seed_rate 0.1 \
+    --seed_algo "DeepIM" \

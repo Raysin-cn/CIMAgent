@@ -19,17 +19,17 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def parse_args():
     parser = argparse.ArgumentParser(description='社交媒体态度分析工具')
-    parser.add_argument('--topic_index', type=int, default=4,
+    parser.add_argument('--topic_index', type=int, default=3,
                       help='要分析的主题索引')
     parser.add_argument('--topics_path', type=str, default='data/CIM_experiments/topics.json',
                       help='主题文件路径')
-    parser.add_argument('--db_dir', type=str, default='experiments/topic_4_Qwen3-14B_True_20250516_115712/backups',
+    parser.add_argument('--db_dir', type=str, default='experiments/topic_3_Qwen3-14B_True_20250519_023520/backups',
                       help='数据库文件目录')
     parser.add_argument('--start_index', type=int, default=0,
                       help='起始数据库文件索引')
     parser.add_argument('--end_index', type=int, default=10,
                       help='结束数据库文件索引')
-    parser.add_argument('--output_dir', type=str, default='experiments/topic_4_Qwen3-14B_True_20250516_115712',
+    parser.add_argument('--output_dir', type=str, default='experiments/topic_3_Qwen3-14B_True_20250519_023520',
                       help='输出目录')
     return parser.parse_args()
 

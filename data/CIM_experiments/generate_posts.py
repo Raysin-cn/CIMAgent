@@ -254,10 +254,10 @@ async def main():
                       help='Directory to save generated posts')
     parser.add_argument('--list_topics', action='store_true',
                       help='List all available topics and exit')
-    parser.add_argument('--topic_id', type=str, default='topic_5',
+    parser.add_argument('--topic_id', type=str, default='topic_6',
                       help='Specific topic ID to generate posts for')
     parser.add_argument('--model_path', type=str,
-                      default='/home/models/Qwen3-8B',
+                      default='/data/model/Qwen3-14B',
                       help='Path to the language model')
     parser.add_argument('--model_url', type=str,
                       default='http://0.0.0.0:12345/v1',

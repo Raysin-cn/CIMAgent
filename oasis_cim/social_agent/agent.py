@@ -460,7 +460,7 @@ class SocialHiddenAgent(ChatAgent):
             # 记录用户（观察者）的消息
             user_msg = BaseMessage.make_user_message(
                 role_name="User",
-                content=f"Someone says this to me: {response_content.get('say2user', '')}"
+                content=f"Someone says this to you: {response_content.get('say2user', '')}"
             )
             target_agent.memory.write_record(
                 MemoryRecord(
