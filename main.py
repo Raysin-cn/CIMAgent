@@ -36,14 +36,13 @@ def parse_args():
                       help='用户数据文件路径')
     
     # 模型相关参数
-    parser.add_argument('--model_path', type=str, default="/data/model/Qwen3-14B",
+    parser.add_argument('--model_path', type=str, default="gpt-4o-mini",
                       help='模型路径')
-    parser.add_argument('--model_url', type=str, default="http://0.0.0.0:12345/v1",
+    parser.add_argument('--model_url', type=str, default="https://api.gptgod.online/v1/",
                       help='模型服务URL')
-    parser.add_argument('--max_tokens_1', type=int, default=12000,
-                      help='第一个模型的最大token数')
-    parser.add_argument('--max_tokens_2', type=int, default=1000,
-                      help='第二个模型的最大token数')
+    parser.add_argument('--api_key', type=str, default="sk-0F8p7ljy9VVJa0555Y8te4XSoINHh0t72WDooFhOHkxL0kTP")
+    parser.add_argument('--max_tokens', type=int, default=12000,
+                      help='模型的最大token数')
     
     # 模拟相关参数
     parser.add_argument('--total_steps', type=int, default=12,
@@ -82,20 +81,13 @@ async def main():
     args.experiment_name = args.topic_file.split("/")[-1].split(".")[0].split("posts_")[-1] + '_' + args.model_path.split("/")[-1].split(".")[-1] + '_' + args.use_hidden_control + '_'
     args.backup_dir = os.path.join(args.experiments_dir, args.experiment_name+timestamp, "backups")
     
-    # 配置模型
-    vllm_model_1 = ModelFactory.create(
-        model_platform=ModelPlatformType.VLLM,
+
+    models = ModelFactory.create(
+        model_platform=ModelPlatformType.OPENAI,
         model_type=args.model_path,
         url=args.model_url,
-        model_config_dict={"max_tokens": args.max_tokens_1}
+        model_config_dict={"max_tokens": args.max_tokens}
     )
-    vllm_model_2 = ModelFactory.create(
-        model_platform=ModelPlatformType.VLLM,
-        model_type=args.model_path,
-        url=args.model_url,
-        model_config_dict={"max_tokens": args.max_tokens_2}
-    )
-    models = [vllm_model_1, vllm_model_2]
 
     # 定义可用动作
     available_actions = [
