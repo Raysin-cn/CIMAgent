@@ -10,24 +10,218 @@ from camel.types import ModelPlatformType
 import random
 import matplotlib.pyplot as plt
 import numpy as np
+import networkx as nx
+from matplotlib.colors import LinearSegmentedColormap
+# 设置matplotlib支持中文字体显示
+import matplotlib.font_manager as fm
 
-def visualize_adj_matrix(adj_matrix, title="Adj_Maxtrix Visilization"):
+# 直接设置文泉驿字体（系统中已安装）
+try:
+    # 方法1：直接设置字体文件路径
+    font_path = '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc'
+    if os.path.exists(font_path):
+        font_prop = fm.FontProperties(fname=font_path)
+        plt.rcParams['font.family'] = font_prop.get_name()
+        print(f"成功设置字体: {font_prop.get_name()}")
+    else:
+        # 方法2：使用字体名称
+        plt.rcParams['font.sans-serif'] = ['WenQuanYi Zen Hei', 'DejaVu Sans']
+        print("使用字体名称设置")
+    
+    plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+    
+    # 测试中文字体
+    fig, ax = plt.subplots(figsize=(1, 1))
+    ax.text(0.5, 0.5, '测试', fontsize=12)
+    plt.close(fig)
+    print("中文字体测试成功")
+    
+except Exception as e:
+    print(f"中文字体设置失败: {e}")
+    print("将使用英文标签")
+    plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+    plt.rcParams['axes.unicode_minus'] = False
+
+def visualize_adj_matrix(adj_matrix=None, csv_path=None, title="Social Network Visualization", 
+                        save_path='./data/network_visualization.png', 
+                        use_directed_graph=True, node_size_factor=100, 
+                        edge_width_factor=0.5, figsize=(12, 10)):
     """
-    可视化邻接矩阵
+    可视化社交网络关系图
     
     Args:
-        adj_matrix: 邻接矩阵
+        adj_matrix: 邻接矩阵（可选）
+        csv_path: CSV文件路径（可选，如果提供则直接从CSV提取关系）
         title: 图表标题
+        save_path: 保存路径
+        use_directed_graph: 是否使用有向图
+        node_size_factor: 节点大小因子
+        edge_width_factor: 边宽度因子
+        figsize: 图形大小
     """
-    # 确保邻接矩阵是numpy数组且类型为float
-    adj_matrix = np.array(adj_matrix, dtype=float)
+    # 科研绘图配色方案
+    scientific_colors = {
+        'background': '#f8f9fa',
+        'nodes': '#2c3e50',
+        'edges': '#34495e',
+        'highlight': '#e74c3c',
+        'secondary': '#3498db',
+        'tertiary': '#27ae60'
+    }
     
-    plt.figure(figsize=(10, 10))
-    plt.imshow(adj_matrix, cmap='Blues')
-    plt.colorbar()
-    plt.title(title)
-    plt.savefig('./data/adj_matrix.png')
-    plt.close()
+    # 创建自定义颜色映射
+    node_cmap = LinearSegmentedColormap.from_list('scientific', 
+                                                 ['#ecf0f1', '#2c3e50'], N=256)
+    edge_cmap = LinearSegmentedColormap.from_list('edge_scientific', 
+                                                 ['#bdc3c7', '#34495e'], N=256)
+    
+    if csv_path is not None:
+        # 从CSV文件直接提取关注关系
+        df = pd.read_csv(csv_path)
+        G = nx.DiGraph() if use_directed_graph else nx.Graph()
+        
+        # 添加节点
+        for _, row in df.iterrows():
+            user_id = str(row['user_id'])
+            G.add_node(user_id, 
+                      name=row.get('name', f'user_{user_id}'),
+                      followers_count=row.get('followers_count', 0),
+                      following_count=row.get('following_count', 0),
+                      description=row.get('description', ''))
+        
+        # 添加边（关注关系）
+        for _, row in df.iterrows():
+            user_id = str(row['user_id'])
+            following_list = row.get('following_list', [])
+            
+            # 处理following_list（可能是字符串形式的列表）
+            if isinstance(following_list, str):
+                try:
+                    following_list = eval(following_list)
+                except:
+                    following_list = []
+            
+            # 添加关注关系边
+            for following_id in following_list:
+                if str(following_id) in G.nodes():
+                    G.add_edge(user_id, str(following_id))
+        
+        print(f"从CSV构建了包含 {G.number_of_nodes()} 个节点和 {G.number_of_edges()} 条边的网络")
+        
+    elif adj_matrix is not None:
+        # 使用提供的邻接矩阵
+        adj_matrix = np.array(adj_matrix, dtype=float)
+        G = nx.from_numpy_array(adj_matrix, create_using=nx.DiGraph() if use_directed_graph else nx.Graph())
+        print(f"从邻接矩阵构建了包含 {G.number_of_nodes()} 个节点和 {G.number_of_edges()} 条边的网络")
+    else:
+        raise ValueError("必须提供adj_matrix或csv_path参数之一")
+    
+    # 计算网络指标
+    if G.number_of_nodes() > 0:
+        # 度中心性
+        degree_centrality = nx.degree_centrality(G)
+        # 介数中心性
+        betweenness_centrality = nx.betweenness_centrality(G)
+        # 接近中心性
+        closeness_centrality = nx.closeness_centrality(G)
+        
+        # 计算节点大小（基于度中心性）
+        node_sizes = [degree_centrality[node] * node_size_factor + 50 for node in G.nodes()]
+        
+        # 计算边权重（基于目标节点的度中心性）
+        edge_weights = [degree_centrality[edge[1]] * edge_width_factor + 0.1 for edge in G.edges()]
+        
+        # 计算节点颜色（基于介数中心性）
+        node_colors = [betweenness_centrality[node] for node in G.nodes()]
+        
+        # 计算边颜色（基于目标节点的接近中心性）
+        edge_colors = [closeness_centrality[edge[1]] for edge in G.edges()]
+        
+        # 创建图形
+        plt.figure(figsize=figsize, facecolor=scientific_colors['background'])
+        
+        # 设置布局
+        if G.number_of_nodes() <= 50:
+            pos = nx.spring_layout(G, k=3, iterations=50, seed=42)
+        else:
+            pos = nx.kamada_kawai_layout(G)
+        
+        # 绘制边
+        nx.draw_networkx_edges(G, pos, 
+                              edge_color=edge_colors,
+                              edge_cmap=edge_cmap,
+                              width=edge_weights,
+                              alpha=0.6,
+                              arrows=use_directed_graph,
+                              arrowsize=10,
+                              arrowstyle='->',
+                              connectionstyle='arc3,rad=0.1')
+        
+        # 绘制节点
+        nodes = nx.draw_networkx_nodes(G, pos,
+                                      node_color=node_colors,
+                                      node_size=node_sizes,
+                                      cmap=node_cmap,
+                                      alpha=0.8,
+                                      edgecolors=scientific_colors['nodes'],
+                                      linewidths=1)
+        
+        # 添加节点标签（只显示重要节点）
+        important_nodes = [node for node in G.nodes() 
+                          if degree_centrality[node] > np.percentile(list(degree_centrality.values()), 75)]
+        
+        if len(important_nodes) <= 20:  # 只标注重要节点，避免标签重叠
+            labels = {node: G.nodes[node].get('name', node) for node in important_nodes}
+            nx.draw_networkx_labels(G, pos, labels, 
+                                  font_size=8, 
+                                  font_color=scientific_colors['nodes'],
+                                  font_weight='bold')
+        
+        # 设置图形属性
+        plt.title(title, fontsize=16, fontweight='bold', color=scientific_colors['nodes'])
+        plt.axis('off')
+        
+        # 添加颜色条
+        if G.number_of_nodes() > 0:
+            sm = plt.cm.ScalarMappable(cmap=node_cmap, norm=plt.Normalize(vmin=min(node_colors), vmax=max(node_colors)))
+            cbar = plt.colorbar(sm, ax=plt.gca(), shrink=0.8, aspect=20)
+            cbar.set_label('Betweenness Centrality', fontsize=10, color=scientific_colors['nodes'])
+            cbar.ax.tick_params(colors=scientific_colors['nodes'])
+        
+        # 添加网络统计信息
+        stats_text = f"""
+网络统计:
+• 节点数: {G.number_of_nodes()}
+• 边数: {G.number_of_edges()}
+• 平均度: {np.mean([d for n, d in G.degree()]):.2f}
+• 网络密度: {nx.density(G):.4f}
+• 连通分量数: {nx.number_strongly_connected_components(G) if use_directed_graph else nx.number_connected_components(G)}
+        """
+        
+        plt.figtext(0.02, 0.02, stats_text, fontsize=9, 
+                   color=scientific_colors['nodes'], 
+                   bbox=dict(boxstyle="round,pad=0.3", 
+                           facecolor=scientific_colors['background'], 
+                           edgecolor=scientific_colors['secondary'], 
+                           alpha=0.8))
+        
+        # 保存图形
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=300, bbox_inches='tight', 
+                   facecolor=scientific_colors['background'])
+        plt.close()
+        
+        print(f"网络可视化已保存到: {save_path}")
+        
+        # 返回网络对象和统计信息
+        return G, {
+            'degree_centrality': degree_centrality,
+            'betweenness_centrality': betweenness_centrality,
+            'closeness_centrality': closeness_centrality
+        }
+    else:
+        print("网络为空，无法可视化")
+        return None, None
 
 class UserDataProcessor:
     def __init__(self, csv_path: str):
@@ -248,7 +442,10 @@ class UserDataProcessor:
                 if len(j) > 0:
                     adj_matrix[i, j[0]] = 1
         
-        visualize_adj_matrix(adj_matrix)
+        # 使用新的可视化方法
+        visualize_adj_matrix(adj_matrix=adj_matrix, 
+                           title="User Following Network Visualization",
+                           save_path='./data/adj_matrix_network.png')
         
         return enhance_user_data
     
@@ -299,5 +496,6 @@ def following_list_to_following_agentid_list(csv_path: str):
     user_data.to_csv(csv_path, index=False)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # asyncio.run(main())
     # following_list_to_following_agentid_list("data/twitter_dataset_CIM/processed_users.csv")
+    visualize_adj_matrix(csv_path="./data/CIM_experiments/users_info.csv")
