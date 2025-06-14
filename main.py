@@ -4,199 +4,84 @@ import asyncio
 import os
 import pandas as pd
 import shutil
+import json
 from datetime import datetime
 import argparse
 import torch
+from dotenv import load_dotenv
+load_dotenv()
 
-from camel.models import ModelFactory
-from camel.types import ModelPlatformType
+from oasis import ActionType, LLMAction, ManualAction, generate_twitter_agent_graph
+from cim.generate_public_posts import PostGenerator, GeneratedPost
+from cim.data_preparation import OasisPostInjector
 
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from oasis import ActionType, EnvAction, SingleAction
-import oasis_cim as oasis
-from IMmodule.DeepIM import DeepIM
 
-async def backup_database(db_path, step, backup_dir):
-    """备份数据库文件"""
-    if not os.path.exists(backup_dir):
-        os.makedirs(backup_dir)
-    
-    backup_path = os.path.join(backup_dir, f"twitter_simulation_{step}.db")
-    shutil.copy2(db_path, backup_path)
-    print(f"数据库已备份到: {backup_path}")
 
-def parse_args():
-    parser = argparse.ArgumentParser(description='Twitter社交网络模拟程序')
-    
-    # 数据相关参数
-    parser.add_argument('--topic_file', type=str, default="data/CIM_experiments/posts/posts_topic_1.csv",
-                      help='话题数据文件路径')
-    parser.add_argument('--users_file', type=str, default="data/CIM_experiments/users_info.csv",
-                      help='用户数据文件路径')
-    
-    # 模型相关参数
-    parser.add_argument('--model_path', type=str, default="gpt-4o-mini",
-                      help='模型路径')
-    parser.add_argument('--model_url', type=str, default="https://api.gptgod.online/v1/",
-                      help='模型服务URL')
-    parser.add_argument('--api_key', type=str, default="sk-0F8p7ljy9VVJa0555Y8te4XSoINHh0t72WDooFhOHkxL0kTP")
-    parser.add_argument('--max_tokens', type=int, default=12000,
-                      help='模型的最大token数')
-    
-    # 模拟相关参数
-    parser.add_argument('--total_steps', type=int, default=12,
-                      help='总模拟步数')
-    parser.add_argument('--backup_interval', type=int, default=1,
-                      help='数据库备份间隔步数')
-    parser.add_argument('--use_hidden_control', type=str, default="True",
-                      help='是否使用隐藏控制')
-    parser.add_argument('--seed_rate', type=float, default=0.1,
-                      help='种子用户比例')
-    parser.add_argument('--seed_algo', type=str, default="Random",
-                      help='种子用户选择算法')
-    
-    # 时间戳和备份目录
-    parser.add_argument('--experiments_dir', type=str, 
-                      default=f"./experiments",
-                      help='数据保存备份目录')
-    parser.add_argument('--experiment_name', type=str, 
-                      default=f"experiment_",
-                      help='实验名称')
-    
-    # 添加DeepIM相关参数
-    parser.add_argument('--deepim_model_dir', type=str, 
-                      default="./models/deepim",
-                      help='DeepIM模型保存目录')
-    parser.add_argument('--train_deepim', type=str, default="True",
-                      help='是否训练DeepIM模型')
-    parser.add_argument('--deepim_samples', type=int, default=200,
-                      help='DeepIM训练样本数量')
-    
-    return parser.parse_args()
 
 async def main():
-    args = parse_args()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    args.experiment_name = args.topic_file.split("/")[-1].split(".")[0].split("posts_")[-1] + '_' + args.model_path.split("/")[-1].split(".")[-1] + '_' + args.use_hidden_control + '_'
-    args.backup_dir = os.path.join(args.experiments_dir, args.experiment_name+timestamp, "backups")
+    """主函数"""
+    parser = argparse.ArgumentParser(description="Oasis社交网络模拟与帖子注入")
+    parser.add_argument("--users_csv", default="data/users_info.csv", 
+                       help="用户数据CSV文件路径（用于创建代理图）")
+    parser.add_argument("--posts_json", default="data/generated_posts.json", 
+                       help="生成的帖子JSON文件路径（将被作为匿名帖子注入）")
+    parser.add_argument("--profile_output", default="data/oasis_user_profiles.csv", 
+                       help="Oasis用户档案输出路径")
+    parser.add_argument("--db_path", default="./data/twitter_simulation.db", 
+                       help="模拟数据库路径")
+    parser.add_argument("--steps", type=int, default=20, 
+                       help="模拟步数（代理互动步数）")
     
-
-    models = ModelFactory.create(
-        model_platform=ModelPlatformType.OPENAI,
-        model_type=args.model_path,
-        url=args.model_url,
-        model_config_dict={"max_tokens": args.max_tokens}
-    )
-
-    # 定义可用动作
-    available_actions = [
-        ActionType.REFRESH, ActionType.SEARCH_USER, ActionType.SEARCH_POSTS,
-        ActionType.CREATE_POST, ActionType.LIKE_POST, ActionType.UNLIKE_POST,
-        ActionType.DISLIKE_POST, ActionType.UNDO_DISLIKE_POST,
-        ActionType.CREATE_COMMENT, ActionType.LIKE_COMMENT, ActionType.UNLIKE_COMMENT,
-        ActionType.DISLIKE_COMMENT, ActionType.UNDO_DISLIKE_COMMENT,
-        ActionType.FOLLOW, ActionType.UNFOLLOW, ActionType.MUTE, ActionType.UNMUTE,
-        ActionType.TREND, ActionType.REPOST, ActionType.QUOTE_POST,
-        ActionType.DO_NOTHING,
-    ]
-
-    # 写入实验参数配置
-    config_dir = os.path.dirname(args.backup_dir)
-    if not os.path.exists(config_dir):
-        os.makedirs(config_dir)
+    args = parser.parse_args()
     
-    args.db_path = os.path.join(config_dir, "twitter_simulation.db")
-    # 删除旧数据库
-    if os.path.exists(args.db_path):
-        os.remove(args.db_path)
-
-
-    config_path = os.path.join(config_dir, "experiment_config.txt")
-    with open(config_path, "w", encoding="utf-8") as f:
-        f.write(f"Model Path: {args.model_path}\n")
-        f.write(f"Model URL: {args.model_url}\n") 
-        f.write(f"Database Path: {args.db_path}\n")
-        f.write(f"Topic File: {args.topic_file}\n")
-        f.write(f"Users File: {args.users_file}\n")
-        f.write(f"Total Steps: {args.total_steps}\n")
-        f.write(f"Backup Interval: {args.backup_interval}\n")
-        f.write(f"Backup Directory: {args.backup_dir}\n")
-        f.write(f"Use Hidden Control: {args.use_hidden_control}\n")
-        f.write(f"Seed Selection Algorithm: {args.seed_algo}\n")
-        f.write(f"Seed Rate: {args.seed_rate}\n")
+    print("CIMAgent Oasis社交网络模拟 - 匿名帖子注入")
+    print("=" * 60)
+    print("注意：所有生成的帖子将作为匿名帖子注入到系统中")
+    print("匿名帖子的发布者不会参与后续的社交网络演进")
+    print("=" * 60)
+    
+    # 初始化注入器
+    injector = OasisPostInjector(db_path=args.db_path)
+    
+    try:
+        # 加载数据
+        print("1. 加载数据...")
+        injector.load_users_data(args.users_csv)
+        injector.load_generated_posts(args.posts_json)
         
-
-    # 读取用户配置
-    users_df = pd.read_csv(args.users_file)
-    user_to_agent = {user_id: idx for idx, user_id in enumerate(users_df['user_id'].values)}
-    
-    # 创建环境
-    env = oasis.make(
-        platform=oasis.DefaultPlatformType.TWITTER,
-        database_path=args.db_path,
-        agent_profile_path=args.users_file,
-        agent_models=models,
-        available_actions=available_actions,
-        time_engine="activity_level_frequency",
-    )
-
-    await env.reset()
-
-    # 读取话题数据
-    topics_df = pd.read_csv(args.topic_file)
-    
-    # 创建初始帖子
-    initial_actions = []
-    for idx, row in topics_df.iterrows():
-        root_user_id = int(row['user_id'])
-        agent_id = user_to_agent.get(root_user_id, idx % len(users_df))
+        # 创建用户档案（用于创建代理图）
+        print("2. 创建用户档案...")
+        profile_path = injector.create_user_profile_csv(args.profile_output)
         
-        action = SingleAction(
-            agent_id=agent_id,
-            action=ActionType.CREATE_POST,
-            args={"content": row["content"]}
+        # 运行模拟（包含匿名帖子注入）
+        print("3. 运行模拟并注入匿名帖子...")
+        env = await injector.run_simulation_with_posts(
+            profile_path=profile_path,
+            posts=injector.generated_posts,  # 所有帖子将作为匿名帖子注入
+            num_steps=args.steps
         )
-        initial_actions.append(action)
-
-    # 执行初始动作
-    env_actions = EnvAction(
-        activate_agents=list(range(len(users_df))),
-        intervention=initial_actions
-    )
-    await env.step(env_actions)
-    
-
-    await backup_database(args.db_path, 0, args.backup_dir)
-
-    if args.use_hidden_control == "True":
-        seeds_list_history = []
         
-        if args.seed_algo == "DeepIM":
-            env.agent_graph.diffusion.load_model_params('deepim', 'models/deepim/')
-        else:
-            env.agent_graph.diffusion = 'Random'
+        print("\n" + "=" * 60)
+        print("模拟完成！")
+        print("=" * 60)
+        print("模拟结果:")
+        print(f"- 数据库文件: {args.db_path}")
+        print(f"- 用户档案: {args.profile_output}")
+        print(f"- 注入匿名帖子数: {len(injector.generated_posts)}")
+        print(f"- 代理互动步数: {args.steps}")
+        print("\n匿名帖子说明:")
+        print("- 所有帖子都以匿名用户身份发布（user_id = 0）")
+        print("- 匿名用户不会参与后续的社交网络互动")
+        print("- 匿名帖子会出现在推荐系统中，供其他代理查看和互动")
+        print("- 可以通过数据库查询验证匿名帖子的存在")
         
-        # 选择种子节点
-        seeds = await env.select_seeds(seed_nums_rate=args.seed_rate)
-        await env.hidden_control(seeds)
-        seeds_list_history.append(seeds)
+    except Exception as e:
+        print(f"❌ 运行出错: {e}")
+        import traceback
+        traceback.print_exc()
 
-    # 主模拟循环
-    for step in range(args.total_steps):
-        empty_action = EnvAction()
-        await env.step(empty_action)
-        
-        if (step + 1) % args.backup_interval == 0:
-            await backup_database(args.db_path, step + 1, args.backup_dir)
-            if args.use_hidden_control == "True":
-                seeds = await env.select_seeds(seed_nums_rate=args.seed_rate)
-                await env.hidden_control(seeds)
-                seeds_list_history.append(seeds)
-
-    # 最终备份
-    await backup_database(args.db_path, step="Done", backup_dir=args.backup_dir)
-    await env.close()
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())
+
+
