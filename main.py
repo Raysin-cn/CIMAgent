@@ -32,7 +32,7 @@ async def main():
     # 数据文件参数
     parser.add_argument("--users_csv", 
                        default=cim_config.post_generation.users_file,
-                       help="用户数据CSV文件路径（用于创建代理图）")
+                       help="用户数据CSV文件路径（用于创建智能体图）")
     parser.add_argument("--posts_json", 
                        default=cim_config.get_file_path("processed", "generated_posts.json"),
                        help="生成的帖子JSON文件路径（将被作为匿名帖子注入）")
@@ -46,7 +46,7 @@ async def main():
                        help="模拟数据库路径")
     
     # 模拟参数
-    parser.add_argument("--steps", type=int, default=20, 
+    parser.add_argument("--steps", type=int, default=8,
                        help="模拟步数（代理互动步数）")
     
     # 数据管理参数
@@ -116,6 +116,7 @@ async def main():
         # 6. 运行模拟（包含匿名帖子注入）
         logger.info("6. 运行模拟并注入匿名帖子...")
         env = await injector.run_simulation_with_posts(
+            
             profile_path=profile_path,
             posts=injector.generated_posts,  # 所有帖子将作为匿名帖子注入
             num_steps=args.steps
