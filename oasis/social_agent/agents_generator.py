@@ -33,9 +33,9 @@ from oasis.social_platform.typing import ActionType
 
 async def generate_agents(
     agent_info_path: str,
-    channel: Channel,
     model: Union[BaseModelBackend, List[BaseModelBackend]],
-    start_time,
+    start_time: int = 0,
+    channel: Channel = None,
     recsys_type: str = "twitter",
     twitter: Platform = None,
     available_actions: list[ActionType] = None,
@@ -621,6 +621,7 @@ async def generate_twitter_agent_graph(
 
     agent_graph = AgentGraph()
 
+    followees_mapping = {}
     for agent_id in range(len(agent_info)):
         profile = {
             "nodes": [],
@@ -645,5 +646,18 @@ async def generate_twitter_agent_graph(
             available_actions=available_actions,
         )
 
+        followees_mapping[agent_id] = agent_info["following_agentid_list"][agent_id]
         agent_graph.add_agent(agent)
+
+    for agent_id in range(len(agent_info)):
+        followees = followees_mapping[agent_id]
+        if isinstance(followees, str):
+            try:
+                followees = ast.literal_eval(followees)
+            except Exception:
+                followees = []
+        if not isinstance(followees, list):
+            followees = []
+        for followee_id in followees:
+            agent_graph.add_edge(agent_id, followee_id)
     return agent_graph

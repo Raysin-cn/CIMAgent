@@ -15,7 +15,7 @@ from pathlib import Path
 # 导入CIM模块
 from cim import OasisPostInjector, DataManager, config
 from cim.config import config as cim_config
-
+from cim.core.influence_detector import analyze_degree_centrality
 
 # 配置日志
 logging.basicConfig(
@@ -116,14 +116,35 @@ async def main():
         # 6. 运行模拟（包含匿名帖子注入）
         logger.info("6. 运行模拟并注入匿名帖子...")
         env = await injector.run_simulation_with_posts(
-            
             profile_path=profile_path,
             posts=injector.generated_posts,  # 所有帖子将作为匿名帖子注入
             num_steps=args.steps
         )
         
+
+        # # 6. 构造匿名帖子注入后的env
+        # logger.info("6. 构造匿名舆论环境...")
+        # env = await injector.setup_env_with_posts(
+        #     profile_path = profile_path,
+        #     posts = injector.generated_posts,
+        # )
+
         # 7. 生成运行摘要
         injection_summary = injector.get_injection_summary()
+
+
+        test = analyze_degree_centrality(env.agent_graph, 10)
+        print(test)
+
+
+
+
+
+
+
+
+
+
         
         print("\n" + "=" * 60)
         print("模拟完成！")

@@ -8,16 +8,5 @@
 log
 
 **__pycache__**
-
-Benchmark
-Re_algos
-Simulator
-CIMAgent.code-workspace
-private_config
-Platform/log
-DBinfo/db_analysis/*
-simu_db
-experiments/*
-data/db_analysis
-data/twitter_dataset_CIM
-data/yaml_200
+*.code-workspace
+scripts/private_config

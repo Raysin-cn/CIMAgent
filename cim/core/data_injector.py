@@ -26,7 +26,7 @@ from oasis import (
     generate_twitter_agent_graph
 )
 from oasis.environment.env import OasisEnv
-
+import oasis
 from ..config import config
 
 
@@ -260,7 +260,6 @@ class OasisPostInjector:
                 logger.info("删除旧数据库文件")
             
             # 创建环境
-            import oasis
             env = oasis.make(
                 agent_graph=agent_graph,
                 platform=oasis.DefaultPlatformType.TWITTER,
@@ -301,6 +300,71 @@ class OasisPostInjector:
             
         except Exception as e:
             logger.error(f"❌ 运行模拟失败: {e}")
+            raise
+
+    async def setup_env_with_posts(self,
+                                profile_path: str,
+                                posts: List[Dict],
+                        ):
+        
+        """
+        运行包含生成帖子的社交网络模拟
+        
+        Args:
+            profile_path: 用户档案文件路径
+            posts: 要注入的帖子列表
+
+        Returns:
+            Oasis环境对象
+        """
+        try:
+            # 创建模型
+            if self.model_config["platform"].upper() == "VLLM":
+                model = ModelFactory.create(
+                    model_platform=ModelPlatformType.VLLM,
+                    model_type=self.model_config["model_type"],
+                    url=self.model_config["url"]
+                )
+            else:
+                model = ModelFactory.create(
+                    model_platform=ModelPlatformType.OPENAI,
+                    model_type=ModelType.GPT_4O,
+                )
+                        # 定义可用动作
+            available_actions = ActionType.get_default_twitter_actions()
+            
+            # 生成代理图
+            logger.info("生成代理图...")
+            agent_graph = await generate_twitter_agent_graph(
+                profile_path=profile_path,
+                model=model,
+                available_actions=available_actions,
+            )
+            
+            # 删除旧数据库
+            if os.path.exists(self.db_path):
+                os.remove(self.db_path)
+                logger.info("删除旧数据库文件")
+            
+            # 创建环境
+            import oasis
+            env = oasis.make(
+                agent_graph=agent_graph,
+                platform=oasis.DefaultPlatformType.TWITTER,
+                database_path=self.db_path,
+            )
+            
+            # 重置环境
+            await env.reset()
+            logger.info("环境重置完成")
+            
+            # 注入匿名帖子
+            await self.inject_anonymous_posts(env, posts)
+
+            return env
+            
+        except Exception as e:
+            logger.error(f"❌ 构建环境失败: {e}")
             raise
     
     def get_injection_summary(self) -> Dict[str, Any]:

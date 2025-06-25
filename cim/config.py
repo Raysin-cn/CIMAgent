@@ -14,11 +14,12 @@ from pathlib import Path
 class ModelConfig:
     """模型配置"""
     platform: str = "VLLM"
-    model_type: str = "/data/model/Qwen3-14B"
+    # model_type: str = "/data/model/Qwen3-14B"
+    model_type: str = "/home/models/Qwen3-8B"
     url: str = "http://localhost:12345/v1"
     max_tokens: int = 10000
     temperature: float = 1.0
-    timeout: int = 30
+    timeout: int = 1000
 
 
 @dataclass
@@ -35,10 +36,11 @@ class PathConfig:
     data_dir: str = "./data"
     output_dir: str = "./data/output"
     figs_dir: str = "./data/figs"
+    processed_dir: str = "./data/processed"
     
     def __post_init__(self):
         """确保必要的目录存在"""
-        for path in [self.data_dir, self.output_dir, self.figs_dir]:
+        for path in [self.data_dir, self.output_dir, self.figs_dir, self.processed_dir]:
             Path(path).mkdir(parents=True, exist_ok=True)
 
 
@@ -134,7 +136,8 @@ class Config:
         path_map = {
             "output": self.paths.output_dir,
             "figs": self.paths.figs_dir,
-            "data": self.paths.data_dir
+            "data": self.paths.data_dir,
+            "processed": self.paths.processed_dir
         }
         
         base_path = path_map.get(file_type, self.paths.data_dir)
