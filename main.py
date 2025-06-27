@@ -11,6 +11,7 @@ import argparse
 import logging
 from datetime import datetime
 from pathlib import Path
+import os
 
 # 导入CIM模块
 from cim import OasisPostInjector, DataManager, config
@@ -62,6 +63,10 @@ async def main():
                        help="启用调试模式")
     
     parser.add_argument("--intervene_dialogue", action="store_true", help="是否介入匿名智能体对话说服")
+    parser.add_argument("--target_strategy", default="topk_degree", help="匿名体目标选择策略")
+    parser.add_argument("--num_targets", type=int, default=5, help="匿名体说服目标数量")
+    parser.add_argument("--num_turns", type=int, default=3, help="匿名体说服轮数")
+    parser.add_argument("--summary_output", default="data/output/summary.json", help="运行摘要保存路径")
 
     args = parser.parse_args()
     
@@ -148,7 +153,14 @@ async def main():
 
         # 7. 生成运行摘要
         injection_summary = injector.get_injection_summary()
-
+        # 获取db_path所在目录
+        db_dir = os.path.dirname(args.db_path)
+        # 获取db文件名（不带扩展名）
+        db_base = os.path.splitext(os.path.basename(args.db_path))[0]
+        # 生成摘要文件名
+        summary_path = os.path.join(db_dir, f"{db_base}_summary.json")
+        injector.save_injection_summary(injection_summary, summary_path)
+        print(f"✓ 运行摘要已保存: {summary_path}")
 
         print("\n" + "=" * 60)
         print("模拟完成！")
@@ -157,7 +169,7 @@ async def main():
         print(f"- 数据库文件: {args.db_path}")
         print(f"- 用户档案: {args.profile_output}")
         print(f"- 注入匿名帖子数: {injection_summary['posts_loaded']}")
-        print(f"- 代理互动步数: {args.steps}")
+        print(f"- 智能体互动步数: {args.steps}")
         print(f"- 运行时间: {injection_summary['injection_time']}")
         
         print("\n匿名帖子说明:")
@@ -174,7 +186,7 @@ async def main():
         
         # 9. 生成数据摘要报告
         logger.info("9. 生成数据摘要报告...")
-        summary_path = data_manager.export_data_summary()
+        summary_path = data_manager.export_data_summary(args.db_path)
         print(f"✓ 数据摘要报告已生成: {summary_path}")
         
         print("\n" + "=" * 60)

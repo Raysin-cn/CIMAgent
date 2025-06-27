@@ -12,4 +12,4 @@ log
 scripts/private_config
 data/output/*
 data/processed/*
-**TEMP/**
+**TEMP**

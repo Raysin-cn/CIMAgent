@@ -336,4 +336,8 @@ class OasisPostInjector:
             "database_path_valid": os.path.exists(os.path.dirname(self.db_path))
         }
         
-        return validation_results 
+        return validation_results
+
+    def save_injection_summary(self, summary: dict, output_path: str):
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(summary, f, ensure_ascii=False, indent=2) 

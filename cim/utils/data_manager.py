@@ -281,7 +281,7 @@ class DataManager:
             logger.error(f"❌ 数据库验证失败: {e}")
             return validation_result
     
-    def export_data_summary(self, output_path: Optional[str] = None) -> str:
+    def export_data_summary(self, db_path:str, output_path: Optional[str] = None) -> str:
         """
         导出数据摘要报告
         
@@ -293,14 +293,15 @@ class DataManager:
         """
         if output_path is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = config.get_file_path("output", f"data_summary_{timestamp}.json")
+            db_base = os.path.splitext(os.path.basename(db_path))[0]
+            output_path = config.get_file_path("output", f"{db_base}_{timestamp}.json")
         
         try:
             summary = {
                 "data_directory": str(self.data_dir),
                 "backup_directory": str(self.backup_dir),
                 "backups": self.list_backups(),
-                "database_validation": self.validate_database(),
+                "database_validation": self.validate_database(db_path),
                 "file_organization": self.organize_data_files(),
                 "generated_time": datetime.now().isoformat()
             }
