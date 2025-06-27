@@ -3,14 +3,13 @@
 **.pkl
 **.sql
 **.txt
+**.bin
 .env
 log
 
 **__pycache__**
-
-Benchmark
-Re_algos
-Simulator
-CIMagent.code-workspace
-
-Platform/log
+*.code-workspace
+scripts/private_config
+data/output/*
+data/processed/*
+**TEMP/**
