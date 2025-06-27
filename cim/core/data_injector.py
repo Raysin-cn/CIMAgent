@@ -214,106 +214,15 @@ class OasisPostInjector:
         logger.info(f"✓ 成功注入了 {injected_count} 条匿名帖子")
         return injected_count
     
-    async def run_simulation_with_posts(self, 
-                                      profile_path: str,
-                                      posts: List[Dict],
-                                      num_steps: int = 5) -> OasisEnv:
-        """
-        运行包含生成帖子的社交网络模拟
-        
-        Args:
-            profile_path: 用户档案文件路径
-            posts: 要注入的帖子列表
-            num_steps: 模拟步数
-            
-        Returns:
-            Oasis环境对象
-        """
-        try:
-            # 创建模型
-            if self.model_config["platform"].upper() == "VLLM":
-                model = ModelFactory.create(
-                    model_platform=ModelPlatformType.VLLM,
-                    model_type=self.model_config["model_type"],
-                    url=self.model_config["url"]
-                )
-            else:
-                model = ModelFactory.create(
-                    model_platform=ModelPlatformType.OPENAI,
-                    model_type=ModelType.GPT_4O,
-                )
-            
-            # 定义可用动作
-            available_actions = ActionType.get_default_twitter_actions()
-            
-            # 生成代理图
-            logger.info("生成代理图...")
-            agent_graph = await generate_twitter_agent_graph(
-                profile_path=profile_path,
-                model=model,
-                available_actions=available_actions,
-            )
-            
-            # 删除旧数据库
-            if os.path.exists(self.db_path):
-                os.remove(self.db_path)
-                logger.info("删除旧数据库文件")
-            
-            # 创建环境
-            env = oasis.make(
-                agent_graph=agent_graph,
-                platform=oasis.DefaultPlatformType.TWITTER,
-                database_path=self.db_path,
-            )
-            
-            # 重置环境
-            await env.reset()
-            logger.info("环境重置完成")
-            
-            # 注入匿名帖子
-            await self.inject_anonymous_posts(env, posts)
-            
-            # 让其他代理进行互动
-            logger.info("让其他代理进行互动...")
-            for step in range(num_steps):
-                try:
-                    # 选择一些代理进行LLM驱动的动作
-                    llm_actions = {}
-                    agent_count = 0
-                    
-                    for agent_id, agent in env.agent_graph.get_agents()[1:]:  # 匿名智能体不执行动作
-                        llm_actions[agent] = LLMAction()
-                    
-                    await env.step(llm_actions)
-                    logger.info(f"✓ 步骤 {step + 1}: {len(llm_actions)} 个代理进行了互动")
-                    
-                    await asyncio.sleep(1)
-                    
-                except Exception as e:
-                    logger.error(f"❌ 步骤 {step + 1} 出错: {e}")
-            
-            # 关闭环境
-            await env.close()
-            logger.info("✓ 模拟完成")
-            
-            return env
-            
-        except Exception as e:
-            logger.error(f"❌ 运行模拟失败: {e}")
-            raise
-
     async def setup_env_with_posts(self,
                                 profile_path: str,
                                 posts: List[Dict],
                         ):
-        
         """
-        运行包含生成帖子的社交网络模拟
-        
+        初始化环境并注入匿名帖子（不进行模拟步骤）
         Args:
             profile_path: 用户档案文件路径
             posts: 要注入的帖子列表
-
         Returns:
             Oasis环境对象
         """
@@ -330,9 +239,8 @@ class OasisPostInjector:
                     model_platform=ModelPlatformType.OPENAI,
                     model_type=ModelType.GPT_4O,
                 )
-                        # 定义可用动作
+            # 定义可用动作
             available_actions = ActionType.get_default_twitter_actions()
-            
             # 生成代理图
             logger.info("生成代理图...")
             agent_graph = await generate_twitter_agent_graph(
@@ -340,12 +248,10 @@ class OasisPostInjector:
                 model=model,
                 available_actions=available_actions,
             )
-            
             # 删除旧数据库
             if os.path.exists(self.db_path):
                 os.remove(self.db_path)
                 logger.info("删除旧数据库文件")
-            
             # 创建环境
             import oasis
             env = oasis.make(
@@ -353,20 +259,56 @@ class OasisPostInjector:
                 platform=oasis.DefaultPlatformType.TWITTER,
                 database_path=self.db_path,
             )
-            
             # 重置环境
             await env.reset()
             logger.info("环境重置完成")
-            
             # 注入匿名帖子
             await self.inject_anonymous_posts(env, posts)
-
             return env
-            
         except Exception as e:
             logger.error(f"❌ 构建环境失败: {e}")
             raise
-    
+
+    async def run_simulation_steps(self, env, num_steps: int = 5):
+        """
+        让代理进行多步互动模拟
+        Args:
+            env: Oasis环境对象
+            num_steps: 模拟步数
+        Returns:
+            None
+        """
+        logger.info("让其他代理进行互动...")
+        for step in range(num_steps):
+            try:
+                llm_actions = {}
+                for agent_id, agent in env.agent_graph.get_agents()[1:]:  # 匿名智能体不执行动作
+                    llm_actions[agent] = LLMAction()
+                await env.step(llm_actions)
+                logger.info(f"✓ 步骤 {step + 1}: {len(llm_actions)} 个代理进行了互动")
+                await asyncio.sleep(1)
+            except Exception as e:
+                logger.error(f"❌ 步骤 {step + 1} 出错: {e}")
+        await env.close()
+        logger.info("✓ 模拟完成")
+
+    async def run_simulation_with_posts(self, 
+                                      profile_path: str,
+                                      posts: List[Dict],
+                                      num_steps: int = 5) -> Any:
+        """
+        兼容旧接口：初始化环境、注入匿名帖子并直接模拟多步
+        Args:
+            profile_path: 用户档案文件路径
+            posts: 要注入的帖子列表
+            num_steps: 模拟步数
+        Returns:
+            Oasis环境对象
+        """
+        env = await self.setup_env_with_posts(profile_path, posts)
+        await self.run_simulation_steps(env, num_steps)
+        return env
+
     def get_injection_summary(self) -> Dict[str, Any]:
         """
         获取注入摘要信息

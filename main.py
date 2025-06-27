@@ -16,6 +16,7 @@ from pathlib import Path
 from cim import OasisPostInjector, DataManager, config
 from cim.config import config as cim_config
 from cim.core.influence_detector import analyze_degree_centrality
+from cim.core.agent_controller import AnonymousAgentController
 
 # 配置日志
 logging.basicConfig(
@@ -33,6 +34,7 @@ async def main():
     parser.add_argument("--users_csv", 
                        default=cim_config.post_generation.users_file,
                        help="用户数据CSV文件路径（用于创建智能体图）")
+    parser.add_argument("--topic", help="指定本次干预的topic")
     parser.add_argument("--posts_json", 
                        default=cim_config.get_file_path("processed", "generated_posts.json"),
                        help="生成的帖子JSON文件路径（将被作为匿名帖子注入）")
@@ -59,6 +61,8 @@ async def main():
     parser.add_argument("--debug", action="store_true",
                        help="启用调试模式")
     
+    parser.add_argument("--intervene_dialogue", action="store_true", help="是否介入匿名智能体对话说服")
+
     args = parser.parse_args()
     
     # 设置调试模式
@@ -113,39 +117,39 @@ async def main():
         profile_path = injector.create_user_profile_csv(args.profile_output)
         print(f"✓ 用户档案已创建: {profile_path}")
         
-        # 6. 运行模拟（包含匿名帖子注入）
-        logger.info("6. 运行模拟并注入匿名帖子...")
-        env = await injector.run_simulation_with_posts(
+        # 6. 初始化环境并注入匿名帖子（不进行模拟步骤）
+        logger.info("6. 初始化环境并注入匿名帖子...")
+        topic = args.topic if hasattr(args, "topic") else "COVID-19 vaccination"  # 或通过命令行参数传入
+        env = await injector.setup_env_with_posts(
             profile_path=profile_path,
-            posts=injector.generated_posts,  # 所有帖子将作为匿名帖子注入
-            num_steps=args.steps
+            posts=injector.generated_posts,
         )
-        
-
-        # # 6. 构造匿名帖子注入后的env
-        # logger.info("6. 构造匿名舆论环境...")
-        # env = await injector.setup_env_with_posts(
-        #     profile_path = profile_path,
-        #     posts = injector.generated_posts,
-        # )
+        # ========== 新增：匿名智能体对话说服介入 ===========
+        if args.intervene_dialogue:
+            logger.info("7. 介入匿名智能体对话说服...")
+            anon_controller = AnonymousAgentController(env)
+            stance_goal = "favor"  # 例如：希望目标用户支持某观点
+            target_strategy = "topk_degree"
+            num_targets = 5
+            num_turns = 3
+            # 使用LLM驱动的多目标多轮记忆对话
+            persuade_results = await anon_controller.batch_multi_turn_persuasion(
+                stance_goal=stance_goal,
+                topic=topic,
+                strategy=target_strategy,
+                k=num_targets,
+                num_turns=num_turns
+            )
+            logger.info(f"对话说服已完成，目标用户数: {len(persuade_results)}")
+        # ========== 进行多步模拟 ===========
+        logger.info("8. 进行多步模拟...")
+        await injector.run_simulation_steps(env, args.steps)
+        # ========== 其余流程保持不变 ===========
 
         # 7. 生成运行摘要
         injection_summary = injector.get_injection_summary()
 
 
-        test = analyze_degree_centrality(env.agent_graph, 10)
-        print(test)
-
-
-
-
-
-
-
-
-
-
-        
         print("\n" + "=" * 60)
         print("模拟完成！")
         print("=" * 60)

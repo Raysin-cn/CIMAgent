@@ -35,21 +35,18 @@ class StanceDetector:
     
     def __init__(self, db_path: Optional[str] = None, model_config: Optional[Dict] = None):
         """
-        初始化立场检测器
-        
+        Initialize StanceDetector
         Args:
-            db_path: 数据库文件路径，如果为None则使用配置中的默认路径
-            model_config: 模型配置，如果为None则使用配置中的默认配置
+            db_path: database file path, use default if None
+            model_config: model config, use default if None
         """
         self.db_path = db_path or config.database.path
         self.model_config = model_config or config.model.__dict__
         self.model = None
         self.agent = None
-        
-        # 立场类别定义
-        self.stance_categories = ["支持", "反对", "中立", "混合"]
-        
-        logger.info(f"初始化立场检测器，数据库路径: {self.db_path}")
+        # stance categories in English
+        self.stance_categories = ["favor", "against", "none", "mixed"]
+        logger.info(f"Initialize StanceDetector, db path: {self.db_path}")
     
     def _init_model(self):
         """初始化LLM模型"""
@@ -72,13 +69,13 @@ class StanceDetector:
                 
                 # 创建ChatAgent
                 self.agent = ChatAgent(
-                    system_message="你是一个社交媒体帖子立场识别助手，能够根据帖子内容和话题识别帖子表达的立场。",
+                    system_message="You are a social media post stance recognition assistant, able to recognize the stance of a post based on its content and topic.",
                     model=self.model
                 )
                 
-                logger.info(f"✓ 成功初始化模型: {self.model_config['platform']}")
+                logger.info(f"✓ Successfully initialized model: {self.model_config['platform']}")
             except Exception as e:
-                logger.error(f"❌ 模型初始化失败: {e}")
+                logger.error(f"❌ Model initialization failed: {e}")
                 raise
     
     def _get_db_connection(self) -> sqlite3.Connection:
@@ -86,7 +83,7 @@ class StanceDetector:
         try:
             return sqlite3.connect(self.db_path)
         except Exception as e:
-            logger.error(f"❌ 数据库连接失败: {e}")
+            logger.error(f"❌ Database connection failed: {e}")
             raise
     
     def get_user_recent_posts(self, user_id: int, limit: int = None) -> List[Dict]:
@@ -132,11 +129,11 @@ class StanceDetector:
                 post_list.append(post_dict)
             
             conn.close()
-            logger.debug(f"获取用户 {user_id} 的 {len(post_list)} 条帖子")
+            logger.debug(f"Retrieved {len(post_list)} posts for user {user_id}")
             return post_list
             
         except Exception as e:
-            logger.error(f"❌ 获取用户 {user_id} 的帖子失败: {e}")
+            logger.error(f"❌ Failed to retrieve posts for user {user_id}: {e}")
             return []
     
     def get_all_users_with_posts(self) -> List[int]:
@@ -162,11 +159,11 @@ class StanceDetector:
             users = [row[0] for row in cursor.fetchall()]
             
             conn.close()
-            logger.info(f"找到 {len(users)} 个发布过帖子的用户")
+            logger.info(f"Found {len(users)} users who have posted")
             return users
             
         except Exception as e:
-            logger.error(f"❌ 获取用户列表失败: {e}")
+            logger.error(f"❌ Failed to retrieve user list: {e}")
             return []
     
     def get_user_info(self, user_id: int) -> Optional[Dict]:
@@ -200,90 +197,125 @@ class StanceDetector:
             return None
             
         except Exception as e:
-            logger.error(f"❌ 获取用户 {user_id} 信息失败: {e}")
+            logger.error(f"❌ Failed to retrieve user {user_id} information: {e}")
             return None
     
-    async def detect_stance_for_text(self, text: str, topic: str = None, max_retries: int = None) -> Dict:
+    # Chain-of-Thought few-shot prompt template (English)
+    cot_prompt_template = '''Q: What is the tweet's stance on the target?
+The options are:
+- against
+- favor
+- none
+
+tweet: <I'm sick of celebrities who think being a well known actor makes them an authority on anything else. #robertredford #UN>
+target: Liberal Values
+reasoning: the author is implying that celebrities should not be seen as authorities on political issues, which is often associated with liberal values such as Robert Redford who is a climate change activist -> the author is against liberal values
+stance: against
+
+tweet: <I believe in a world where people are free to move and choose where they want to live>
+target: Immigration
+reasoning: the author is expressing a belief in a world with more freedom of movement -> the author is in favor of immigration
+stance: favor
+
+tweet: <I love the way the sun sets every day. #Nature #Beauty>
+target: Taxes
+reasoning: the author is in favor of nature and beauty -> the author is neutral towards taxes
+stance: none
+
+tweet: <If a woman chooses to pursue a career instead of staying at home, is she any less of a mother?>
+target: Conservative Party
+reasoning: the author is questioning traditional gender roles, which are often supported by the conservative party -> the author is against the conservative party
+stance: against
+
+tweet: <We need to make sure that mentally unstable people can't become killers #protect #US>
+target: Gun Control
+reasoning: the author is advocating for measures to prevent mentally unstable people from accessing guns -> the author is in favor of gun control
+stance: favor
+
+tweet: <There is no shortcut to success, there's only hard work and dedication #Success #SuccessMantra>
+target: Open Borders
+reasoning: the author is in favor of hard work and dedication -> the author is neutral towards open borders
+stance: none
+
+tweet: <{text}>
+target: {target}
+reasoning:
+'''
+
+    def _parse_reasoning_and_stance(self, content: str) -> tuple[str, str]:
         """
-        对单个文本进行立场检测
-        
+        Parse reasoning and stance from model output
+        """
+        import re
+        reasoning = ""
+        stance = ""
+        reasoning_match = re.search(r"reasoning:(.*?)(?:stance:|$)", content, re.DOTALL | re.IGNORECASE)
+        stance_match = re.search(r"stance:\s*([a-zA-Z]+)", content, re.IGNORECASE)
+        if reasoning_match:
+            reasoning = reasoning_match.group(1).strip()
+        if stance_match:
+            stance = stance_match.group(1).strip().lower()
+        # Map stance to standard English categories
+        stance_map = {
+            "favor": "favor",
+            "support": "favor",
+            "against": "against",
+            "oppose": "against",
+            "none": "none",
+            "neutral": "none",
+            "mixed": "mixed"
+        }
+        stance = stance_map.get(stance, "none")
+        return reasoning, stance
+
+    async def detect_stance_for_text(self, text: str, topic: str = None, max_retries: int = None, n: int = 3) -> Dict:
+        """
+        Stance detection for a single text, with CoT and self-consistency
         Args:
-            text: 要检测的文本
-            topic: 检测的主题，如果为None则使用配置中的默认主题
-            max_retries: 最大重试次数，如果为None则使用配置中的默认值
-            
+            text: text to detect
+            topic: detection topic
+            max_retries: max retry times
+            n: sample times, default 3
         Returns:
-            立场检测结果，包含立场、置信度、理由等
+            structured stance detection result
         """
         topic = topic or config.stance.default_topic
         max_retries = max_retries or config.stance.max_retries
-        
         self._init_model()
-        
-        prompt = f"""
-请分析以下关于"{topic}"的文本的立场。
-
-文本内容：{text}
-
-请从以下立场中选择一个：
-1. 支持 - 明确支持或赞同相关观点
-2. 反对 - 明确反对或批评相关观点  
-3. 中立 - 保持中立态度，不明确支持或反对
-4. 混合 - 同时包含支持和反对的观点
-
-请以JSON格式返回结果：
-{{
-    "stance": "立场类别",
-    "confidence": "置信度(0-1)",
-    "reasoning": "分析理由",
-    "keywords": ["关键词1", "关键词2"]
-}}
-
-只返回JSON格式的结果，不要其他内容。
-"""
-        
-        for attempt in range(max_retries):
-            try:
-                response = await self.agent.astep(
-                    BaseMessage.make_user_message(
-                        role_name="User",
-                        content=prompt
+        prompt = self.cot_prompt_template.format(text=text, target=topic)
+        reasonings, stances = [], []
+        for _ in range(n):
+            for attempt in range(max_retries):
+                try:
+                    response = await self.agent.astep(
+                        BaseMessage.make_user_message(
+                            role_name="User",
+                            content=prompt
+                        )
                     )
-                )
-                
-                if response.msgs and len(response.msgs) > 0:
-                    content = response.msgs[0].content.strip()
-                    
-                    # 尝试解析JSON
-                    try:
-                        result = json.loads(content)
-                        
-                        # 验证结果格式
-                        if all(key in result for key in ["stance", "confidence", "reasoning"]):
-                            result["text"] = text
-                            result["topic"] = topic
-                            result["detection_time"] = datetime.now().isoformat()
-                            
-                            logger.debug(f"立场检测成功: {result['stance']} (置信度: {result['confidence']})")
-                            return result
-                        else:
-                            logger.warning(f"立场检测结果格式不完整: {result}")
-                            
-                    except json.JSONDecodeError:
-                        logger.warning(f"无法解析JSON响应: {content}")
-                        
-            except Exception as e:
-                logger.warning(f"立场检测尝试 {attempt + 1} 失败: {e}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(1)  # 重试前等待
-        
-        # 所有重试都失败，返回默认结果
-        logger.error(f"立场检测失败，返回默认结果")
+                    if response.msgs and len(response.msgs) > 0:
+                        content = response.msgs[0].content.strip()
+                        reasoning, stance = self._parse_reasoning_and_stance(content)
+                        if stance:
+                            reasonings.append(reasoning)
+                            stances.append(stance)
+                            break
+                except Exception as e:
+                    logger.warning(f"Stance detection sample failed: {e}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1)
+            else:
+                reasonings.append("")
+                stances.append("none")
+        from collections import Counter
+        stance_counter = Counter(stances)
+        pred, count = stance_counter.most_common(1)[0]
+        confidence = count / n
         return {
-            "stance": "中立",
-            "confidence": 0.0,
-            "reasoning": "检测失败，使用默认中立立场",
-            "keywords": [],
+            "reasonings": reasonings,
+            "stances": stances,
+            "pred": pred,
+            "confidence": confidence,
             "text": text,
             "topic": topic,
             "detection_time": datetime.now().isoformat()
@@ -307,14 +339,14 @@ class StanceDetector:
         # 获取用户信息
         user_info = self.get_user_info(user_id)
         if not user_info:
-            logger.warning(f"用户 {user_id} 不存在")
-            return {"error": f"用户 {user_id} 不存在"}
+            logger.warning(f"User {user_id} does not exist")
+            return {"error": f"User {user_id} does not exist"}
         
         # 获取用户最近帖子
         posts = self.get_user_recent_posts(user_id, post_limit)
         if not posts:
-            logger.warning(f"用户 {user_id} 没有发布过帖子")
-            return {"error": f"用户 {user_id} 没有发布过帖子"}
+            logger.warning(f"User {user_id} has not posted")
+            return {"error": f"User {user_id} has not posted"}
         
         # 检测每个帖子的立场
         post_stances = []
@@ -350,7 +382,7 @@ class StanceDetector:
             "analysis_time": datetime.now().isoformat()
         }
         
-        logger.info(f"用户 {user_id} 立场检测完成: {main_stance}")
+        logger.info(f"User {user_id} stance detection completed: {main_stance}")
         return result
     
     async def detect_stance_for_all_users(self, topic: str = None, post_limit: int = None) -> List[Dict]:
@@ -369,10 +401,10 @@ class StanceDetector:
         
         users = self.get_all_users_with_posts()
         if not users:
-            logger.warning("没有找到发布过帖子的用户")
+            logger.warning("No users found who have posted")
             return []
         
-        logger.info(f"开始检测 {len(users)} 个用户的立场")
+        logger.info(f"Starting stance detection for {len(users)} users")
         
         # 并发检测所有用户
         semaphore = asyncio.Semaphore(config.stance.max_concurrent)
@@ -387,7 +419,7 @@ class StanceDetector:
         # 过滤掉错误结果
         valid_results = [r for r in results if isinstance(r, dict) and "error" not in r]
         
-        logger.info(f"立场检测完成，成功检测 {len(valid_results)} 个用户")
+        logger.info(f"Stance detection completed, successfully detected {len(valid_results)} users")
         return valid_results
     
     def save_stance_results(self, results: List[Dict], output_path: str):
@@ -425,10 +457,10 @@ class StanceDetector:
             df = pd.DataFrame(csv_data)
             df.to_csv(csv_path, index=False, encoding='utf-8')
             
-            logger.info(f"结果已保存: {output_path}, {csv_path}")
+            logger.info(f"Results saved: {output_path}, {csv_path}")
             
         except Exception as e:
-            logger.error(f"❌ 保存结果失败: {e}")
+            logger.error(f"❌ Failed to save results: {e}")
     
     def generate_stance_summary(self, results: List[Dict]) -> Dict:
         """
@@ -441,12 +473,12 @@ class StanceDetector:
             摘要信息
         """
         if not results:
-            return {"error": "没有检测结果"}
+            return {"error": "No detection results"}
         
         valid_results = [r for r in results if "error" not in r]
         
         if not valid_results:
-            return {"error": "没有有效的检测结果"}
+            return {"error": "No valid detection results"}
         
         # 统计信息
         total_users = len(valid_results)

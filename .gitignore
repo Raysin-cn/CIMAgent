@@ -10,3 +10,6 @@ log
 **__pycache__**
 *.code-workspace
 scripts/private_config
+data/output/*
+data/processed/*
+**TEMP/**
