@@ -294,7 +294,7 @@ class DataManager:
         if output_path is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             db_base = os.path.splitext(os.path.basename(db_path))[0]
-            output_path = config.get_file_path("output", f"{db_base}_{timestamp}.json")
+            output_path = os.path.join(os.path.dirname(db_path),  f"{db_base}_{timestamp}.json")
         
         try:
             summary = {

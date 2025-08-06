@@ -287,7 +287,12 @@ reasoning:
         for _ in range(n):
             for attempt in range(max_retries):
                 try:
-                    response = await self.agent.astep(
+                    # 每次推理都新建无历史的agent
+                    agent = ChatAgent(
+                        system_message="You are a social media post stance recognition assistant, able to recognize the stance of a post based on its content and topic.",
+                        model=self.model
+                    )
+                    response = await agent.astep(
                         BaseMessage.make_user_message(
                             role_name="User",
                             content=prompt

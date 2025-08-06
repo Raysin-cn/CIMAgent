@@ -14,12 +14,12 @@ from pathlib import Path
 class ModelConfig:
     """模型配置"""
     platform: str = "VLLM"
-    # model_type: str = "/data/model/Qwen3-14B"
-    model_type: str = "/home/models/Qwen3-8B"
+    # model_type: str = "Qwen3-8B"
+    model_type: str = "Qwen3-14B-INT8"
     url: str = "http://localhost:12345/v1"
-    max_tokens: int = 10000
-    temperature: float = 1.0
-    timeout: int = 1000
+    max_tokens: int = 40960
+    # temperature: float = 1.0
+    # timeout: int = 1000
 
 
 @dataclass
@@ -71,7 +71,7 @@ class VisualizationConfig:
     """可视化配置"""
     figure_size: tuple = (12, 8)
     dpi: int = 300
-    style: str = "seaborn"
+    style: str = "seaborn-v0_8"
     color_palette: str = "Set2"
     save_format: str = "png"
 

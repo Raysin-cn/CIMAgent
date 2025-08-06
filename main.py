@@ -18,6 +18,7 @@ from cim import OasisPostInjector, DataManager, config
 from cim.config import config as cim_config
 from cim.core.influence_detector import analyze_degree_centrality
 from cim.core.agent_controller import AnonymousAgentController
+from cim.core.simulation import run_simulation_steps
 
 # 配置日志
 logging.basicConfig(
@@ -98,7 +99,7 @@ async def main():
         injector = OasisPostInjector(db_path=args.db_path)
         
         # 3. 加载数据
-        logger.info("4. 加载数据...")
+        logger.info("3. 加载数据...")
         users_data = injector.load_users_data(args.users_csv)
         posts_data = injector.load_generated_posts(args.posts_json)
         
@@ -106,7 +107,7 @@ async def main():
         print(f"✓ 加载了 {len(posts_data)} 条生成的帖子")
 
         # 4. 验证数据文件
-        logger.info("3. 验证数据文件...")
+        logger.info("4. 验证数据文件...")
         validation_results = injector.validate_data()
         
         if not validation_results["users_data_valid"]:
@@ -146,12 +147,14 @@ async def main():
                 num_turns=num_turns
             )
             logger.info(f"对话说服已完成，目标用户数: {len(persuade_results)}")
+
+
         # ========== 进行多步模拟 ===========
         logger.info("8. 进行多步模拟...")
         await injector.run_simulation_steps(env, args.steps)
         # ========== 其余流程保持不变 ===========
 
-        # 7. 生成运行摘要
+        # 生成运行摘要
         injection_summary = injector.get_injection_summary()
         # 获取db_path所在目录
         db_dir = os.path.dirname(args.db_path)
@@ -178,14 +181,15 @@ async def main():
         print("- 匿名帖子会出现在推荐系统中，供其他代理查看和互动")
         print("- 可以通过数据库查询验证匿名帖子的存在")
         
-        # 8. 数据清理（如果启用）
+        # 9. 数据清理（如果启用）
         if args.cleanup:
-            logger.info("8. 清理临时文件...")
+            logger.info("9. 清理临时文件...")
             deleted_count = data_manager.cleanup_temp_files()
             print(f"✓ 清理了 {deleted_count} 个临时文件")
         
-        # 9. 生成数据摘要报告
-        logger.info("9. 生成数据摘要报告...")
+        # 10. 生成数据摘要报告
+        logger.info("10. 生成数据摘要报告...")
+        
         summary_path = data_manager.export_data_summary(args.db_path)
         print(f"✓ 数据摘要报告已生成: {summary_path}")
         
@@ -194,7 +198,7 @@ async def main():
         print("=" * 60)
         
     except FileNotFoundError as e:
-        logger.error(f"❌ 文件不存在: {e}")
+        logger.error(f"❌ 文件++不存在: {e}")
         print(f"❌ 文件不存在: {e}")
         print("请检查文件路径是否正确，或使用 --help 查看参数说明")
         

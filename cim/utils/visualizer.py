@@ -17,8 +17,13 @@ import logging
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from pathlib import Path
+import sys
+import os
+from collections import defaultdict, Counter
 
-from ..config import config
+# 直接绝对导入config，避免相对导入导致的ImportError
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from cim.config import config
 
 
 # 配置日志
@@ -501,4 +506,156 @@ class StanceVisualizer:
             
         except Exception as e:
             logger.error(f"❌ 创建综合分析报告失败: {e}")
-            return "" 
+            return ""
+    
+    def plot_simple_stance_evolution(self, 
+                                 evolution_data: Dict, 
+                                 title: str = "Stance Evolution Trend",
+                                 save_name: Optional[str] = None) -> str:
+        """
+        Input a simple dict (steps, favor, against, none), plot overall stance evolution trend and save
+
+        Args:
+            evolution_data: {
+                "steps": [...],
+                "favor": [...],
+                "against": [...],
+                "none": [...]
+            }
+            title: Chart title
+            save_name: File name to save (optional)
+
+        Returns:
+            Saved file path
+        """
+        try:
+            # Basic format check
+            keys = ["steps", "favor", "against", "none"]
+            if not all(k in evolution_data for k in keys):
+                logger.warning("Evolution data missing required fields")
+                return ""
+            n = len(evolution_data["steps"])
+            if not all(len(evolution_data[k]) == n for k in keys):
+                logger.warning("Evolution data fields have inconsistent lengths")
+                return ""
+
+            # Convert to numpy arrays to avoid type issues
+            steps = np.array(evolution_data["steps"])
+            favor = np.array(evolution_data["favor"])
+            against = np.array(evolution_data["against"])
+            none = np.array(evolution_data["none"])
+
+            # Plot
+            plt.figure(figsize=config.visualization.figure_size)
+            plt.stackplot(steps, favor, against, none, labels=["Favor", "Against", "Neutral/None"], alpha=0.8)
+            plt.title(title)
+            plt.xlabel("Step")
+            plt.ylabel("Number of Users")
+            plt.legend(loc="upper right")
+            plt.tight_layout()
+
+            # Save
+            if save_name is None:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                save_name = f"simple_stance_evolution_{timestamp}.{config.visualization.save_format}"
+            save_path = self.output_dir / save_name
+            plt.savefig(save_path, dpi=config.visualization.dpi, bbox_inches='tight')
+            plt.close()
+            logger.info(f"✓ Simple stance evolution trend plot saved: {save_path}")
+            return str(save_path)
+        except Exception as e:
+            logger.error(f"❌ Failed to plot simple stance evolution trend: {e}")
+            return ""
+
+def get_stance_evolution_from_json(users: List[Dict[str, Any]]) -> Dict[str, List[int]]:
+    """
+    统计每一轮的立场分布，考虑用户未发帖时继承上一次立场
+
+    Args:
+        users: 从json文件读取的用户列表，每个用户有time_series
+
+    Returns:
+        evolution_data: {
+            "steps": [...],
+            "favor": [...],
+            "against": [...],
+            "none": [...]
+        }
+    """
+    # 1. 找到所有step
+    all_steps = set()
+    for user in users:
+        for record in user["time_series"]:
+            all_steps.add(record["created_at"])
+    steps = sorted(all_steps)
+
+    # 2. 构建每个用户的step->stance映射
+    user_stance_dict = {}
+    for user in users:
+        stance_per_step = {}
+        for record in user["time_series"]:
+            stance_per_step[record["created_at"]] = record["stance"]
+        user_stance_dict[user["user_id"]] = stance_per_step
+
+    # 3. 统计每一轮的立场分布
+    favor_list, against_list, none_list = [], [], []
+    for step in steps:
+        favor, against, none = 0, 0, 0
+        for user in users:
+            # 继承上一次立场
+            stance_per_step = user_stance_dict[user["user_id"]]
+            prev_stance = "none"
+            for s in steps:
+                if s > step:
+                    break
+                if s in stance_per_step:
+                    prev_stance = stance_per_step[s]
+            # 统计
+            if prev_stance == "favor":
+                favor += 1
+            elif prev_stance == "against":
+                against += 1
+            else:
+                none += 1
+        favor_list.append(favor)
+        against_list.append(against)
+        none_list.append(none)
+
+    evolution_data = {
+        "steps": steps,
+        "favor": favor_list,
+        "against": against_list,
+        "none": none_list
+    }
+    return evolution_data
+
+if __name__ == "__main__":
+    # 统一输入输出文件名
+    base_name = "exp_intervene_topk_degree_20"
+    input_path = f"data/stance/{base_name}.json"
+    output_img = f"{base_name}_evolution.png"
+
+    # 1. 读取演进数据
+    with open(input_path, "r", encoding="utf-8") as f:
+        users = json.load(f)
+
+    # 2. 统计每一轮的立场分布
+    evolution_data = get_stance_evolution_from_json(users)
+
+    # 3. 打印调试信息
+    print("evolution_data:", evolution_data)
+
+    # 4. 检查数据有效性
+    if not (evolution_data["steps"] and evolution_data["favor"] and evolution_data["against"] and evolution_data["none"]):
+        logger.warning("Evolution data is empty, please check input data!")
+    elif not (len(evolution_data["steps"]) == len(evolution_data["favor"]) == len(evolution_data["against"]) == len(evolution_data["none"])):
+        logger.warning("Evolution data fields have inconsistent lengths!")
+    else:
+        # 5. 可视化
+        visualizer = StanceVisualizer()
+        fig_path = visualizer.plot_simple_stance_evolution(
+            evolution_data,
+            title="Stance Evolution Trend",
+            save_name=output_img
+        )
+        print(f"Trend plot saved to: {fig_path}")
