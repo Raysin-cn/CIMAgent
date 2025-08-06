@@ -233,7 +233,7 @@ class OasisPostInjector:
                     model_platform=ModelPlatformType.VLLM,
                     model_type=self.model_config["model_type"],
                     url=self.model_config["url"],
-                    model_config_dict={"temperature":0}
+                    model_config_dict={"temperature":1}
                 )
             else:
                 model = ModelFactory.create(

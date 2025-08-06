@@ -7,10 +7,10 @@ mkdir -p data/output
 
 # 公共参数
 USERS_CSV="data/raw/users_info.csv"
-TOPIC="Should AI Art Be Allowed in Traditional Art Competitions?"
+TOPIC="Should We Still Support Xinjiang Cotton Despite Forced Labor Allegations?"
 POSTS_JSON="data/processed/generated_posts.json"
 PROFILE_OUTPUT="data/processed/oasis_user_profiles.csv"
-STEPS=12
+STEPS=10
 
 # 不介入匿名智能体（对照组）
 python main.py \

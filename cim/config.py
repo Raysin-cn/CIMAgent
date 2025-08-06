@@ -14,8 +14,8 @@ from pathlib import Path
 class ModelConfig:
     """模型配置"""
     platform: str = "VLLM"
-    # model_type: str = "Qwen3-8B"
-    model_type: str = "Qwen3-14B-INT8"
+    model_type: str = "Qwen3-8B"
+    # model_type: str = "Qwen3-14B-INT8"
     url: str = "http://localhost:12345/v1"
     max_tokens: int = 40960
     # temperature: float = 1.0

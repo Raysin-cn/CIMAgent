@@ -58,7 +58,7 @@ class StanceDetector:
                         model_platform=ModelPlatformType.VLLM,
                         model_type=self.model_config["model_type"],
                         url=self.model_config["url"],
-                        model_config_dict={"max_tokens": self.model_config["max_tokens"]}
+                        model_config_dict={"temperature": 0}
                     )
                 else:
                     # 默认使用OpenAI
@@ -208,38 +208,19 @@ The options are:
 - none
 
 tweet: <I'm sick of celebrities who think being a well known actor makes them an authority on anything else. #robertredford #UN>
-target: Liberal Values
+target: Do you think that the actor could become a political activist?
 reasoning: the author is implying that celebrities should not be seen as authorities on political issues, which is often associated with liberal values such as Robert Redford who is a climate change activist -> the author is against liberal values
 stance: against
 
 tweet: <I believe in a world where people are free to move and choose where they want to live>
-target: Immigration
+target: Peopel don't have the free to choose where to live.
 reasoning: the author is expressing a belief in a world with more freedom of movement -> the author is in favor of immigration
 stance: favor
-
-tweet: <I love the way the sun sets every day. #Nature #Beauty>
-target: Taxes
-reasoning: the author is in favor of nature and beauty -> the author is neutral towards taxes
-stance: none
-
-tweet: <If a woman chooses to pursue a career instead of staying at home, is she any less of a mother?>
-target: Conservative Party
-reasoning: the author is questioning traditional gender roles, which are often supported by the conservative party -> the author is against the conservative party
-stance: against
-
-tweet: <We need to make sure that mentally unstable people can't become killers #protect #US>
-target: Gun Control
-reasoning: the author is advocating for measures to prevent mentally unstable people from accessing guns -> the author is in favor of gun control
-stance: favor
-
-tweet: <There is no shortcut to success, there's only hard work and dedication #Success #SuccessMantra>
-target: Open Borders
-reasoning: the author is in favor of hard work and dedication -> the author is neutral towards open borders
-stance: none
 
 tweet: <{text}>
 target: {target}
 reasoning:
+stance:
 '''
 
     def _parse_reasoning_and_stance(self, content: str) -> tuple[str, str]:
@@ -290,7 +271,7 @@ reasoning:
                     # 每次推理都新建无历史的agent
                     agent = ChatAgent(
                         system_message="You are a social media post stance recognition assistant, able to recognize the stance of a post based on its content and topic.",
-                        model=self.model
+                        model=self.model,
                     )
                     response = await agent.astep(
                         BaseMessage.make_user_message(
