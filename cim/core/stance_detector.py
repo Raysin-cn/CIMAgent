@@ -240,7 +240,7 @@ class StanceDetector:
 }}
 
 只返回JSON格式的结果，不要其他内容。
-"""
+        """
         
         for attempt in range(max_retries):
             try:
@@ -473,3 +473,8 @@ class StanceDetector:
         }
         
         return summary 
+    
+
+
+if __name__ == "__main__":
+    pass

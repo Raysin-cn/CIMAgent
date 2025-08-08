@@ -16,13 +16,17 @@ import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
+import sys
+import os
+# 添加项目根目录到Python路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from camel.models import ModelFactory
 from camel.types import ModelPlatformType, ModelType
 from camel.agents import ChatAgent
 from camel.messages import BaseMessage
 
-from ..config import config
+from cim.config import config
 
 
 # 配置日志
@@ -96,7 +100,7 @@ class PostGenerator:
                         model_platform=ModelPlatformType.VLLM,
                         model_type=self.model_config["model_type"],
                         url=self.model_config["url"],
-                        model_config_dict={"max_tokens": self.model_config["max_tokens"]}
+                        model_config_dict={"max_tokens": self.model_config["max_tokens"], "temperature": 1}
                     )
                 else:
                     # 默认使用OpenAI
@@ -107,7 +111,7 @@ class PostGenerator:
                 
                 # 创建ChatAgent
                 self.agent = ChatAgent(
-                    system_message="你是一个社交媒体帖子生成助手，能够根据用户档案和话题生成个性化的帖子内容。",
+                    system_message="You are a social media post generation assistant, capable of generating personalized post content based on user profiles and topics.",
                     model=self.model
                 )
                 
@@ -204,31 +208,29 @@ class PostGenerator:
             生成的提示词
         """
         prompt = f"""
-你是一个社交媒体用户，需要基于给定的用户档案和话题生成一条个性化的帖子。
+You are a social media user who needs to generate a personalized post based on the given user profile and topic.
+Additionally, note that the user's description may not be very specific. Please think deeply about what other characteristics, interests, behavioral patterns, or expression styles this type of user might have based on common social media user personas. When generating the content, reasonably supplement these details to make the user image more vivid and realistic.
 
-用户档案：
-- 用户名：{user.username}
-- 真实姓名：{user.name}
-- 个人描述：{user.description}
-- 用户特征：{user.user_char}
-- 粉丝数：{user.followers_count}
-- 关注数：{user.following_count}
-- 活跃度：{user.activity_level}
+User Profile:
+- Username: {user.username}
+- Real Name: {user.name}
+- Personal Description: {user.description}
+- User Characteristics: {user.user_char}
 
-话题信息：
-- 标题：{topic.title}
-- 描述：{topic.description}
-- 关键词：{', '.join(topic.keywords)}
-- 相关话题：{', '.join(topic.related_topics)}
+Topic Information:
+- Title: {topic.title}
+- Description: {topic.description}
+- Keywords: {', '.join(topic.keywords)}
+- Related Topics: {', '.join(topic.related_topics)}
 
-请生成一条关于这个话题的帖子，要求：
-1. 内容要符合用户的个人特征和描述
-2. 语言风格要符合用户的活跃度水平
-3. 帖子长度适中（{config.post_generation.min_length}-{config.post_generation.max_length}字符）
-4. 内容要有观点和态度
-5. 要自然、真实，避免过于官方化的语言
+Please generate a post about this topic with the following requirements:
+1. Content should match the user's personal characteristics and description
+2. Language style should match the user's activity level
+3. Post length should be moderate ({config.post_generation.min_length}-{config.post_generation.max_length} characters)
+4. Content should have opinions and attitudes
+5. Be natural and authentic, avoid overly formal language
 
-请直接返回帖子内容，不要包含其他说明文字。
+Please return the post content directly, without any additional explanatory text.
 """
         return prompt
     
@@ -271,6 +273,11 @@ class PostGenerator:
             
             if response.msgs and len(response.msgs) > 0:
                 content = response.msgs[0].content.strip()
+
+                # INSERT_YOUR_CODE
+                import re
+                # 去除<think>标签及其内容
+                content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
                 
                 # 创建帖子对象
                 post = GeneratedPost(
@@ -392,3 +399,87 @@ class PostGenerator:
     def get_topic_info(self, topic_id: str) -> Optional[Topic]:
         """获取指定话题的信息"""
         return self.topics_data.get(topic_id) 
+    
+
+if __name__ == '__main__':
+    async def main():
+        """主函数：生成帖子并保存为CSV"""
+        try:
+            # 初始化帖子生成器
+            generator = PostGenerator()
+            
+            # 加载用户数据和话题数据
+            users = generator.load_users_data()
+            topics = generator.load_topics_data()
+
+            
+            logger.info(f"✓ 成功加载 {len(users)} 个用户和 {len(topics)} 个话题")
+            
+            # 获取可用的用户和话题
+            available_users = list(users.keys())
+            available_topics = list(topics.keys())
+            
+            # 配置生成参数
+            selected_users = available_users[1:50]  # 选择前10个用户
+            selected_topic = available_topics[0] if available_topics else None  # 选择第一个话题
+            posts_per_user = 1  # 每个用户生成n条帖子
+            
+            # 确保输出目录存在
+            import os
+            output_dir = "data/processed"
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # 显示选中的用户信息
+            logger.info("选中的用户:")
+            for i, user_id in enumerate(selected_users[:5]):  # 只显示前5个用户
+                user = users[user_id]
+                logger.info(f"  {i+1}. {user.username} ({user.name}) - {user.description[:50]}...")
+            
+            if not selected_topic:
+                logger.error("❌ 没有可用的话题")
+                return
+            
+            logger.info(f"开始生成帖子...")
+            logger.info(f"- 用户数量: {len(selected_users)}")
+            logger.info(f"- 话题: {topics[selected_topic].title}")
+            logger.info(f"- 每用户帖子数: {posts_per_user}")
+            
+            # 生成帖子
+            posts = await generator.generate_multiple_posts(
+                user_ids=selected_users,
+                topic_id=selected_topic,
+                num_posts=posts_per_user
+            )
+            
+            if not posts:
+                logger.error("❌ 没有生成任何帖子")
+                return
+            
+            logger.info(f"✓ 成功生成 {len(posts)} 条帖子")
+            
+            # 保存为CSV文件
+            output_path = "data/processed/generated_posts.csv"
+            generator.save_posts_to_csv(posts, output_path)
+            
+            # 显示生成的帖子统计信息
+            logger.info("📊 生成统计:")
+            logger.info(f"- 总帖子数: {len(posts)}")
+            logger.info(f"- 涉及用户数: {len(set(post.user_id for post in posts))}")
+            logger.info(f"- 话题: {posts[0].topic if posts else 'N/A'}")
+            
+            # 显示前几条帖子作为示例
+            logger.info("📝 帖子示例:")
+            for i, post in enumerate(posts[:3]):
+                logger.info(f"帖子 {i+1}:")
+                logger.info(f"  用户: {post.username}")
+                logger.info(f"  内容: {post.content[:100]}...")
+                logger.info(f"  话题: {post.topic}")
+                logger.info("---")
+            
+        except Exception as e:
+            logger.error(f"❌ 生成帖子时发生错误: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # 运行主函数
+    asyncio.run(main())

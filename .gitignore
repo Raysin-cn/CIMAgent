@@ -21,3 +21,6 @@ experiments/*
 data/db_analysis
 data/twitter_dataset_CIM
 data/yaml_200
+data/*
+TEMP
+*.code-workspace

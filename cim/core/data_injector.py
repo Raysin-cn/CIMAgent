@@ -72,7 +72,7 @@ class OasisPostInjector:
             logger.error(f"❌ 加载用户数据失败: {e}")
             return {}
     
-    def load_generated_posts(self, json_path: str) -> List[Dict]:
+    def load_generated_posts_json(self, json_path: str) -> List[Dict]:
         """
         加载生成的帖子数据
         
@@ -90,6 +90,25 @@ class OasisPostInjector:
         except Exception as e:
             logger.error(f"❌ 加载生成的帖子失败: {e}")
             return []
+        
+    def load_generated_posts_csv(self, csv_path: str) -> List[Dict]:
+        """
+        加载生成的帖子数据
+        
+        Args:
+            json_path: 生成的帖子JSON文件路径
+            
+        Returns:
+            帖子数据列表
+        """
+        try:
+            df = pd.read_csv(csv_path)
+            self.generated_posts = df.to_dict('records')
+            logger.info(f"✓ 加载了 {len(self.generated_posts)} 条生成的帖子")
+            return self.generated_posts
+        except Exception as e:
+            logger.error(f"❌ 加载用户数据失败: {e}")
+            return {}
     
     def create_user_profile_csv(self, output_path: str) -> str:
         """
@@ -213,96 +232,7 @@ class OasisPostInjector:
         
         logger.info(f"✓ 成功注入了 {injected_count} 条匿名帖子")
         return injected_count
-    
-    async def run_simulation_with_posts(self, 
-                                      profile_path: str,
-                                      posts: List[Dict],
-                                      num_steps: int = 5) -> OasisEnv:
-        """
-        运行包含生成帖子的社交网络模拟
-        
-        Args:
-            profile_path: 用户档案文件路径
-            posts: 要注入的帖子列表
-            num_steps: 模拟步数
-            
-        Returns:
-            Oasis环境对象
-        """
-        try:
-            # 创建模型
-            if self.model_config["platform"].upper() == "VLLM":
-                model = ModelFactory.create(
-                    model_platform=ModelPlatformType.VLLM,
-                    model_type=self.model_config["model_type"],
-                    url=self.model_config["url"]
-                )
-            else:
-                model = ModelFactory.create(
-                    model_platform=ModelPlatformType.OPENAI,
-                    model_type=ModelType.GPT_4O,
-                )
-            
-            # 定义可用动作
-            available_actions = ActionType.get_default_twitter_actions()
-            
-            # 生成代理图
-            logger.info("生成代理图...")
-            agent_graph = await generate_twitter_agent_graph(
-                profile_path=profile_path,
-                model=model,
-                available_actions=available_actions,
-            )
-            
-            # 删除旧数据库
-            if os.path.exists(self.db_path):
-                os.remove(self.db_path)
-                logger.info("删除旧数据库文件")
-            
-            # 创建环境
-            import oasis
-            env = oasis.make(
-                agent_graph=agent_graph,
-                platform=oasis.DefaultPlatformType.TWITTER,
-                database_path=self.db_path,
-            )
-            
-            # 重置环境
-            await env.reset()
-            logger.info("环境重置完成")
-            
-            # 注入匿名帖子
-            await self.inject_anonymous_posts(env, posts)
-            
-            # 让其他代理进行互动
-            logger.info("让其他代理进行互动...")
-            for step in range(num_steps):
-                try:
-                    # 选择一些代理进行LLM驱动的动作
-                    llm_actions = {}
-                    agent_count = 0
-                    
-                    for agent_id, agent in env.agent_graph.get_agents()[1:]:  # 匿名智能体不执行动作
-                        llm_actions[agent] = LLMAction()
-                    
-                    await env.step(llm_actions)
-                    logger.info(f"✓ 步骤 {step + 1}: {len(llm_actions)} 个代理进行了互动")
-                    
-                    await asyncio.sleep(1)
-                    
-                except Exception as e:
-                    logger.error(f"❌ 步骤 {step + 1} 出错: {e}")
-            
-            # 关闭环境
-            await env.close()
-            logger.info("✓ 模拟完成")
-            
-            return env
-            
-        except Exception as e:
-            logger.error(f"❌ 运行模拟失败: {e}")
-            raise
-    
+
     def get_injection_summary(self) -> Dict[str, Any]:
         """
         获取注入摘要信息
@@ -331,3 +261,7 @@ class OasisPostInjector:
         }
         
         return validation_results 
+
+
+if __name__ == '__main__':
+    pass
