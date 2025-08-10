@@ -15,6 +15,7 @@ import os
 
 # 导入CIM模块
 from cim import OasisPostInjector, DataManager, config
+from cim.core.stance_detector import StanceDetector
 from cim.core.influence_max import follow_matrix_get, get_influence_maximization_nodes, compare_influence_algorithms
 from cim.config import config as cim_config
 
@@ -83,7 +84,7 @@ async def main():
                        help="影响力评估模拟次数（默认1000）")
 
     # 告知者信息发布参数
-    parser.add_argument("--claim_step", type=int, default=1,
+    parser.add_argument("--claim_step", type=int, default=4,
                         help="告知者在哪一步发布关键信息")
     
     
@@ -99,6 +100,27 @@ async def main():
         cim_config.log_level = "DEBUG"
         logging.getLogger().setLevel(logging.DEBUG)
         logger.debug("调试模式已启用")
+    
+    # 若使用默认 db_path，则根据超参数自动生成区分不同实验的DB文件名，并保存到 ./data/simu/
+    try:
+        default_db_path = cim_config.database.path
+        if args.db_path == default_db_path:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            p_str = f"{args.im_p:.3f}".replace(".", "p")
+            goc_flag = 1 if args.goc else 0
+            filename = (
+                f"oasis_sim_"
+                f"steps{args.steps}_goc{goc_flag}_claim{args.claim_step}_"
+                f"k{args.im_k}_{args.im_algorithm}_{args.im_model}_"
+                f"p{p_str}_sims{args.im_eval_sims}_{ts}.db"
+            )
+            # 保存到 ./data/simu/ 目录下（若不存在则创建）
+            simu_dir = Path("./data/simu").resolve()
+            simu_dir.mkdir(parents=True, exist_ok=True)
+            args.db_path = str(simu_dir / filename)
+            logger.info(f"自动生成实验数据库路径: {args.db_path}")
+    except Exception as e:
+        logger.warning(f"自动命名数据库文件失败，使用原始路径: {args.db_path}. 错误: {e}")
     
     print("CIMAgent Oasis社交网络模拟 - 匿名帖子注入")
     print("=" * 60)
@@ -161,7 +183,7 @@ async def main():
     await env.reset()
     logger.info("环境重置完成")
 
-
+    group_agents = []
     if args.goc:
         chat_group = await env.platform.create_group(1, "goc")
         group_id = chat_group['group_id']
@@ -180,7 +202,9 @@ async def main():
         evaluation = im_result["evaluation"]
         
         # 让影响力最大化节点加入群组
-        join_group_action = {}
+        join_group_action = {env.agent_graph.get_agent(0): ManualAction(
+                    action_type=ActionType.JOIN_GROUP, action_args={"group_id": group_id}
+                )}
         for node_id in influence_nodes:
             if node_id < len(env.agent_graph.get_agents()):
                 agent = env.agent_graph.get_agent(node_id)
@@ -188,6 +212,7 @@ async def main():
                     action_type=ActionType.JOIN_GROUP, action_args={"group_id": group_id}
                 )
                 logger.info(f"节点 {node_id} 加入群组 {group_id}")
+                group_agents.append(agent)
             else:
                 logger.warning(f"节点 {node_id} 超出代理图范围，跳过")
         
@@ -209,6 +234,21 @@ async def main():
         
         for agent_id, agent in env.agent_graph.get_agents()[1:]:  # 匿名智能体不执行动作
             llm_actions[agent] = LLMAction()
+
+        if step == args.claim_step:
+            llm_actions[env.agent_graph.get_agent(0)] = ManualAction(
+                action_type=ActionType.SEND_TO_GROUP,
+                action_args={
+                    "group_id": 1,
+                    "message": "我获得了一个重要信息：有关新疆棉花存在强迫劳动的说法是没有根据的。支持采购新疆棉不仅有助于当地经济发展，也能反击不实指控。我们应该积极支持新疆棉花，拒绝基于谣言的抵制行为。"
+                }
+            )
+            # for group_agent in group_agents:
+            #     llm_actions[group_agent] = ManualAction(
+            #         action_type=ActionType.LISTEN_FROM_GROUP,
+            #         action_args={}
+            #     )
+        
         
         await env.step(llm_actions)
         logger.info(f"✓ 步骤 {step + 1}: {len(llm_actions)} 个代理进行了互动")
@@ -229,6 +269,26 @@ async def main():
     print(f"- 注入匿名帖子数: {injection_summary['posts_loaded']}")
     print(f"- 代理互动步数: {args.steps}")
     print(f"- 运行时间: {injection_summary['injection_time']}")
+
+    # 7. 模拟后立场分析与可视化
+    logger.info("开始立场分析...")
+    detector = StanceDetector(db_path=args.db_path)
+    stance_results = await detector.detect_stance_for_all_users(topic=None, post_limit=None)
+    # 结果保存到 ./data/output 下，文件名关联本次实验
+    output_dir = Path(cim_config.paths.output_dir).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    db_stem = Path(args.db_path).stem
+    stance_json_path = str(output_dir / f"{db_stem}_stance_results.json")
+    await detector.save_stance_results(stance_results, stance_json_path)
+    logger.info(f"立场分析结果已保存到: {stance_json_path}")
+
+    # 立场演化绘图
+    evolution_fig_path = stance_json_path.replace('.json', '_evolution.png')
+    try:
+        detector.plot_users_stance_evolution(stance_results, save_path=evolution_fig_path, alpha=0.7)
+        logger.info(f"立场演化图已保存到: {evolution_fig_path}")
+    except Exception as e:
+        logger.warning(f"立场演化绘图失败: {e}")
     
     # 显示影响力最大化算法结果
     if args.goc:
@@ -257,7 +317,7 @@ async def main():
     print(f"✓ 数据摘要报告已生成: {summary_path}")
     
     print("\n" + "=" * 60)
-    print("所有操作完成！")
+    print("模拟操作完成！")
     print("=" * 60)
         
 

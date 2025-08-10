@@ -46,7 +46,7 @@ class PathConfig:
 @dataclass
 class StanceConfig:
     """立场检测配置"""
-    default_topic: str = "中美贸易关税"
+    default_topic: str = "我们是否要支持采购新疆棉?"
     max_retries: int = 5
     batch_size: int = 50
     max_concurrent: int = 3
@@ -62,7 +62,7 @@ class PostGenerationConfig:
     include_hashtags: bool = True
     include_emojis: bool = True
     topics_file: str = "./data/raw/topics.json"
-    users_file: str = "./data/raw/users_info.csv"
+    users_file: str = "./data/raw/users_info_new.csv"
 
 
 @dataclass
