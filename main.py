@@ -47,9 +47,11 @@ async def main():
     parser.add_argument("--users_csv", 
                        default=cim_config.post_generation.users_file,
                        help="用户数据CSV文件路径（用于创建代理图）")
-    parser.add_argument("--posts_csv", 
-                       default=cim_config.get_file_path("processed", "generated_posts.csv"),
-                       help="生成的帖子CSV文件路径（将被作为匿名帖子注入）")
+    # parser.add_argument("--posts_csv", 
+    #                    default=cim_config.get_file_path("processed", "generated_posts.csv"),
+    #                    help="生成的帖子CSV文件路径（将被作为匿名帖子注入）")
+    parser.add_argument("--topic_info", 
+                        default="")
     parser.add_argument("--profile_output", 
                        default=cim_config.get_file_path("processed", "oasis_user_profiles.csv"),
                        help="Oasis用户档案输出路径")
