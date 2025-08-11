@@ -40,7 +40,7 @@ class InfluenceMaximization:
     2. Random: 随机选择节点作为种子
     """
     
-    def __init__(self, config: Config):
+    def __init__(self, users_file:str):
         """
         初始化影响力最大化算法
         
@@ -48,6 +48,7 @@ class InfluenceMaximization:
             config: 配置对象
         """
         self.config = config
+        self.users_file = users_file
         self.logger = logging.getLogger(__name__)
         
         # 初始化数据结构
@@ -268,7 +269,7 @@ class InfluenceMaximization:
         return results
 
 
-def follow_matrix_get(config: Config) -> np.ndarray:
+def follow_matrix_get(users_file) -> np.ndarray:
     """
     获取关注矩阵
     
@@ -278,7 +279,7 @@ def follow_matrix_get(config: Config) -> np.ndarray:
     Returns:
         关注矩阵
     """
-    user_info_csv = config.post_generation.users_file
+    user_info_csv = users_file
     user_info = pd.read_csv(user_info_csv)
     user_info = user_info.to_dict(orient="records")
     follow_matrix = np.zeros((len(user_info), len(user_info)))
@@ -293,7 +294,7 @@ def follow_matrix_get(config: Config) -> np.ndarray:
     return follow_matrix
 
 
-def get_influence_maximization_nodes(config: Config, k: int = 5, algorithm: str = "Greedy", 
+def get_influence_maximization_nodes(users_file:str, k: int = 5, algorithm: str = "Greedy", 
                                    model: str = "IC", p: float = 0.1, num_simulations: int = 1000):
     """
     获取影响力最大化节点
@@ -315,10 +316,10 @@ def get_influence_maximization_nodes(config: Config, k: int = 5, algorithm: str 
     logger.info(f"算法参数: k={k}, model={model}, p={p}")
     
     # 初始化算法
-    im_algorithm = InfluenceMaximization(config)
+    im_algorithm = InfluenceMaximization(users_file)
     
     # 加载网络数据
-    follow_matrix = follow_matrix_get(config)
+    follow_matrix = follow_matrix_get(users_file=users_file)
     im_algorithm.load_network(follow_matrix)
     
     # 根据算法类型选择种子节点
@@ -353,7 +354,7 @@ def get_influence_maximization_nodes(config: Config, k: int = 5, algorithm: str 
     }
 
 
-def compare_influence_algorithms(config: Config, k: int = 5, algorithms: List[str] = None,
+def compare_influence_algorithms(users_file:str, k: int = 5, algorithms: List[str] = None,
                                model: str = "IC", p: float = 0.1, num_simulations: int = 1000):
     """
     比较不同影响力最大化算法的性能
@@ -377,10 +378,10 @@ def compare_influence_algorithms(config: Config, k: int = 5, algorithms: List[st
     logger.info(f"开始算法比较，目标节点数: {k}")
     
     # 初始化算法
-    im_algorithm = InfluenceMaximization(config)
+    im_algorithm = InfluenceMaximization(users_file)
     
     # 加载网络数据
-    follow_matrix = follow_matrix_get(config)
+    follow_matrix = follow_matrix_get(users_file)
     im_algorithm.load_network(follow_matrix)
     
     # 比较算法
@@ -402,7 +403,7 @@ if __name__ == "__main__":
     print("开始影响力最大化算法测试...")
     
     # 比较算法性能
-    results = compare_influence_algorithms(config, k=5, algorithms=["Greedy", "Random"])
+    results = compare_influence_algorithms(users_file=config.paths.users_file, k=5, algorithms=["Greedy", "Random"])
     
     print("\n算法比较结果:")
     for algo, result in results.items():

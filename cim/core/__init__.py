@@ -7,7 +7,6 @@
 - OasisPostInjector: 数据注入器
 """
 
-from .stance_detector import StanceDetector
 from .post_generator import PostGenerator, GeneratedPost
 from .data_injector import OasisPostInjector
 from .influence_max import InfluenceMaximization, get_influence_maximization_nodes, compare_influence_algorithms

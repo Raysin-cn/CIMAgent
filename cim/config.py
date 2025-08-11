@@ -8,12 +8,13 @@ import os
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
 from pathlib import Path
+from camel.types import ModelPlatformType
 
 
 @dataclass
 class ModelConfig:
     """模型配置"""
-    platform: str = "VLLM"
+    platform: ModelPlatformType = ModelPlatformType.VLLM
     model_type: str = "Qwen3-14B-INT8"
     url: str = "http://localhost:12345/v1"
     max_tokens: int = 10000
@@ -22,31 +23,18 @@ class ModelConfig:
 
 
 @dataclass
-class DatabaseConfig:
-    """数据库配置"""
-    path: str = "./data/twitter_simulation.db"
-    backup_path: str = "./data/backup/"
-    max_connections: int = 10
-
-
-@dataclass
 class PathConfig:
     """路径配置"""
     data_dir: str = "./data"
-    processed_dir: str = "./data/processed"
-    output_dir: str = "./data/output"
-    figs_dir: str = "./data/figs"
-    
-    def __post_init__(self):
-        """确保必要的目录存在"""
-        for path in [self.data_dir, self.processed_dir, self.output_dir, self.figs_dir]:
-            Path(path).mkdir(parents=True, exist_ok=True)
+    db_path: str = "./data/twitter_simulation.db"
+    users_file: str = "./data/users_info_new.csv"
+    posts_file: str = "./data/generated_posts.csv"
+
 
 
 @dataclass
 class StanceConfig:
     """立场检测配置"""
-    default_topic: str = "我们是否要支持采购新疆棉?"
     max_retries: int = 5
     batch_size: int = 50
     max_concurrent: int = 3
@@ -61,8 +49,6 @@ class PostGenerationConfig:
     max_length: int = 280
     include_hashtags: bool = True
     include_emojis: bool = True
-    topics_file: str = "./data/raw/topics.json"
-    users_file: str = "./data/raw/users_info_new.csv"
 
 
 @dataclass
@@ -79,7 +65,6 @@ class VisualizationConfig:
 class Config:
     """主配置类"""
     model: ModelConfig = field(default_factory=ModelConfig)
-    database: DatabaseConfig = field(default_factory=DatabaseConfig)
     paths: PathConfig = field(default_factory=PathConfig)
     stance: StanceConfig = field(default_factory=StanceConfig)
     post_generation: PostGenerationConfig = field(default_factory=PostGenerationConfig)
@@ -109,7 +94,7 @@ class Config:
         
         # 数据库配置
         if os.getenv("CIM_DB_PATH"):
-            self.database.path = os.getenv("CIM_DB_PATH")
+            self.paths.db_path = os.getenv("CIM_DB_PATH")
         
         # 调试模式
         if os.getenv("CIM_DEBUG"):
@@ -119,34 +104,15 @@ class Config:
     def _normalize_paths(self):
         """标准化路径为绝对路径"""
         base_path = Path.cwd()
-        
-        self.database.path = str(Path(self.database.path).resolve())
-        self.database.backup_path = str(Path(self.database.backup_path).resolve())
-        
         self.paths.data_dir = str(Path(self.paths.data_dir).resolve())
-        self.paths.output_dir = str(Path(self.paths.output_dir).resolve())
-        self.paths.figs_dir = str(Path(self.paths.figs_dir).resolve())
-        
-        self.post_generation.topics_file = str(Path(self.post_generation.topics_file).resolve())
-        self.post_generation.users_file = str(Path(self.post_generation.users_file).resolve())
-    
-    def get_file_path(self, file_type: str, filename: str) -> str:
-        """获取指定类型文件的完整路径"""
-        path_map = {
-            "output": self.paths.output_dir,
-            "figs": self.paths.figs_dir,
-            "data": self.paths.data_dir,
-            "processed": self.paths.processed_dir
-        }
-        
-        base_path = path_map.get(file_type, self.paths.data_dir)
-        return str(Path(base_path) / filename)
+        self.paths.db_path = str(Path(self.paths.db_path).resolve())
+        self.paths.users_file = str(Path(self.paths.users_file).resolve())
+        self.paths.posts_file = str(Path(self.paths.posts_file).resolve())
     
     def to_dict(self) -> Dict[str, Any]:
         """将配置转换为字典"""
         return {
             "model": self.model.__dict__,
-            "database": self.database.__dict__,
             "paths": self.paths.__dict__,
             "stance": self.stance.__dict__,
             "post_generation": self.post_generation.__dict__,

@@ -148,6 +148,7 @@ def assign_timesteps(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df.assign(timestep=pd.Series(dtype=int))
 
+    # TODO 时间上理论上是[1,2,...,12]总共12步，每个created_at应该在这个范围内。
     ts = pd.to_datetime(df["created_at"], errors="coerce")
     if ts.notna().any():
         # 使用非空时间做稠密排名

@@ -8,22 +8,16 @@ CIM (Content Influence Modeling) 模块
 - 可视化分析
 """
 
-from .core.stance_detector import StanceDetector
 from .core.post_generator import PostGenerator, GeneratedPost
 from .core.data_injector import OasisPostInjector
-from .utils.data_manager import DataManager
-from .utils.visualizer import StanceVisualizer
 from .config import Config
 
 __version__ = "1.0.0"
 __author__ = "CIMAgent Team"
 
 __all__ = [
-    "StanceDetector",
     "PostGenerator", 
     "GeneratedPost",
     "OasisPostInjector",
-    "DataManager",
-    "StanceVisualizer",
     "Config"
 ]
