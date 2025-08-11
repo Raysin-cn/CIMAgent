@@ -17,6 +17,7 @@ import os
 from cim import OasisPostInjector, config
 from cim.core.influence_max import follow_matrix_get, get_influence_maximization_nodes, compare_influence_algorithms
 from cim.config import config as cim_config
+from cim.utils import generate_twitter_agent_graph
 
 
 from camel.models import ModelFactory
@@ -24,8 +25,7 @@ from camel.types import ModelPlatformType, ModelType
 from oasis import (
     ActionType, 
     ManualAction, 
-    LLMAction,
-    generate_twitter_agent_graph
+    LLMAction
 )
 from oasis.environment.env import OasisEnv
 import oasis
@@ -43,7 +43,8 @@ async def main():
     parser = argparse.ArgumentParser(description="CIMAgent Oasis社交网络模拟与帖子注入")
     
     parser.add_argument("--topic_info", 
-                        default="Should We Support the Purchase of Xinjiang Cotton Products Accused of Oppressing People?")   
+                        default="Should We Support the Purchase of Xinjiang Cotton Products Accused of Oppressing People?",
+                        help="本次模拟讨论的话题，将被注入为所有代理的系统提示主题")   
     # 数据文件参数
     parser.add_argument("--db_path", 
                        default=cim_config.paths.db_path,
@@ -58,8 +59,8 @@ async def main():
     # 模拟参数
     parser.add_argument("--steps", type=int, default=12, 
                        help="模拟步数（代理互动步数）")
-    parser.add_argument("--goc", action="store_true", default=True,
-                       help="启用群组告知干预机制（默认启用）")
+    parser.add_argument("--goc", type=int, choices=[0, 1], default=1,
+                       help="是否启用群组告知干预机制：0 关闭，1 启用（默认1）")
     # 告知者信息干预参数
     parser.add_argument("--claim_step", type=int, default=4,
                         help="告知者在哪一步发布关键信息")
@@ -70,7 +71,9 @@ async def main():
     
     # 影响力最大化算法参数
     parser.add_argument("--im_k", type=int, default=5,
-                       help="影响力最大化种子节点数量（默认5个）")
+                       help="影响力最大化种子节点数量（当未指定 --im_k_ratio 时生效，默认5个）")
+    parser.add_argument("--im_k_ratio", type=float, choices=[0.05, 0.10, 0.15, 0.20], default=0.05,
+                       help="影响力最大化种子节点比例，可选 0.05/0.10/0.15/0.20，优先于 --im_k")
     parser.add_argument("--im_algorithm", type=str, default="Greedy", choices=["Greedy", "Random"],
                        help="影响力最大化算法：Greedy(贪心算法) 或 Random(随机算法)")
     parser.add_argument("--im_model", type=str, default="IC", choices=["IC", "LT"],
@@ -93,11 +96,13 @@ async def main():
         logger.debug("调试模式已启用")
     
     # 初始化
-    goc_flag = 1 if args.goc else 0
+    goc_flag = 1 if args.goc == 1 else 0
+    # 文件名加入比例或数量标记
+    k_tag = f"r{args.im_k_ratio}" if args.im_k_ratio is not None else f"k{args.im_k}"
     filename = (
         f"sim_"
         f"steps{args.steps}_goc{goc_flag}_claim{args.claim_step}_"
-        f"k{args.im_k}_{args.im_algorithm}.db"
+        f"{k_tag}_{args.im_algorithm}.db"
     )
     print("CIMAgent Oasis社交网络模拟 - 匿名帖子注入")
     print("=" * 60)
@@ -131,6 +136,7 @@ async def main():
         profile_path=args.users_csv,
         model=model,
         available_actions=available_actions,
+        topic=args.topic_info,
     )
     # 删除旧数据库
     if os.path.exists(args.db_path):
@@ -147,7 +153,7 @@ async def main():
     logger.info("环境重置完成")
 
     group_agents = []
-    if args.goc:
+    if args.goc == 1:
         chat_group = await env.platform.create_group(1, "goc")
         group_id = chat_group['group_id']
         
@@ -155,6 +161,7 @@ async def main():
         im_result = get_influence_maximization_nodes(
             users_file=args.users_csv,
             k=args.im_k,
+            k_ratio=args.im_k_ratio,
             algorithm=args.im_algorithm,
             model=args.im_model,
             p=args.im_p,
@@ -198,7 +205,7 @@ async def main():
         for agent_id, agent in env.agent_graph.get_agents()[1:]:  # 匿名智能体不执行动作
             llm_actions[agent] = LLMAction()
 
-        if step == args.claim_step:  # 匿名智能体作为告知者在claim_step告知群组成员信息
+        if args.goc == 1 and step == args.claim_step:  # 仅当启用goc时有效
             llm_actions[env.agent_graph.get_agent(0)] = ManualAction(
                 action_type=ActionType.SEND_TO_GROUP,
                 action_args={

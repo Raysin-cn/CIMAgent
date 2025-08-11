@@ -1,9 +1,9 @@
 """
-规则化立场检测与时间步聚合导出
+基于 BERT（Zero-shot NLI）的立场检测与时间步聚合导出
 
 功能：
 - 从 SQLite 数据库读取模拟产生的社交平台帖子数据（表 `post`）
-- 通过关键词/规则的 NLP（不使用 LLM）判别帖子是否“支持/反对/中立”，并识别“告知者/澄清/声明”类帖子
+- 使用 Hugging Face Transformers 的 zero-shot 分类（MNLI）判别帖子“支持/反对/中立”，并可选检测“告知者/澄清/声明”类帖子
 - 根据 `created_at` 推断时间步 `timestep`（对唯一时间戳做稠密排名 1..T），每个时间步聚合计算 `support_ratio`
 - 自动检测首次出现“告知者”帖子的时间步 `claim_step`（若未出现则为 -1），并在 CSV 中作为一列
 - 输出 CSV 仅包含三列：`timestep`, `support_ratio`, `claim_step`
@@ -11,104 +11,165 @@
 用法示例：
   python -m cim.core.stance_detector \
     --db_path data/processed/twitter_simulation.db \
-    --output_csv data/output/stance_by_timestep.csv
+    --output_csv data/output/stance_by_timestep.csv \
+    --model_name typeform/distilbert-base-uncased-mnli \
+    --device cuda:0
 
 可选参数：
-  --only_original           仅统计原创帖（默认 True）
-  --exclude_neutral         支持率分母是否排除“中立”（默认 False，即分母=该步所有帖子数）
+- --only_original           仅统计原创帖（默认 True）
+- --exclude_neutral         支持率分母是否排除“中立”（默认 False，即分母=该步所有帖子数）
+- --model_name              Hugging Face 模型名或本地路径（默认 DistilBERT MNLI）
+- --batch_size              推理批大小（默认 16）
+- --device                  推理设备，如 cpu、cuda:0（默认自动探测）
 
-依赖：pandas
+依赖：pandas、transformers、torch
 """
 from __future__ import annotations
 
 import argparse
-import re
 import sqlite3
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import pandas as pd
-
-
-# ===========================
-# 关键词规则（可按需扩展）
-# ===========================
-SUPPORT_KEYWORDS_ZH: List[str] = [
-    "支持", "赞成", "同意", "认可", "拥护", "鼓励", "推荐", "力挺", "点赞",
-    "继续购买", "继续使用", "正确信息", "合理", "应该", "我支持",
-]
-SUPPORT_KEYWORDS_EN: List[str] = [
-    "support", "agree", "approve", "endorse", "back", "in favor", "pro",
-]
-
-OPPOSE_KEYWORDS_ZH: List[str] = [
-    "反对", "抵制", "不同意", "反驳", "谴责", "拒绝", "取缔", "禁止", "不应该",
-    "误导", "造谣", "虚假", "不实", "谣言",
-]
-OPPOSE_KEYWORDS_EN: List[str] = [
-    "oppose", "against", "boycott", "ban", "stop", "reject", "refuse",
-]
-
-# 标记“告知者/澄清/声明/辟谣”信息的关键词
-INFORMER_KEYWORDS_ZH: List[str] = [
-    "告知", "澄清", "声明", "公告", "通报", "提醒", "说明", "更正", "辟谣", "事实是",
-]
-INFORMER_KEYWORDS_EN: List[str] = [
-    "clarify", "clarification", "correction", "announce", "announcement",
-    "official", "statement", "claim",
-]
+import torch
+from transformers import (
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    pipeline,
+)
 
 
 @dataclass
 class DetectorConfig:
+    """BERT Zero-shot 立场检测配置。"""
+
     only_original: bool = True
     exclude_neutral: bool = False  # True: 支持率分母仅统计支持/反对；False: 分母为该步所有帖子
+    model_name_or_path: str = "facebook/bart-large-mnli"  # 英文 zero-shot 常用模型
+    device: Optional[str] = None  # cpu / cuda:0 / auto
+    batch_size: int = 16
+    enable_informer: bool = True
+    target_text: Optional[str] = None
+    confidence_threshold: float = 0.5
+    informer_threshold: float = 0.6
 
 
-class RuleBasedStanceDetector:
-    """基于关键词规则的立场检测器（不使用 LLM）。"""
+class BertZeroShotStanceDetector:
+    """基于 MNLI zero-shot 的立场检测器。
+
+    - 立场标签：support / oppose / neutral（单标签）
+    - 告知者：informer / not informer（单标签，启用可选）
+    """
 
     def __init__(self, config: Optional[DetectorConfig] = None) -> None:
         self.config = config or DetectorConfig()
-        # 预编译正则，忽略大小写
-        self._re_support = self._compile_any(SUPPORT_KEYWORDS_ZH + SUPPORT_KEYWORDS_EN)
-        self._re_oppose = self._compile_any(OPPOSE_KEYWORDS_ZH + OPPOSE_KEYWORDS_EN)
-        self._re_informer = self._compile_any(INFORMER_KEYWORDS_ZH + INFORMER_KEYWORDS_EN)
 
-    @staticmethod
-    def _compile_any(keywords: Iterable[str]) -> re.Pattern:
-        escaped = [re.escape(k) for k in keywords if k]
-        if not escaped:
-            return re.compile(r"^$")  # 匹配不到任何文本
-        pattern = r"(" + r"|".join(escaped) + r")"
-        return re.compile(pattern, flags=re.IGNORECASE)
-
-    def classify(self, text: str) -> Tuple[str, bool]:
-        """对单条文本进行规则分类。
-
-        返回：(stance, is_informer)
-          - stance ∈ {"support", "oppose", "neutral"}
-          - is_informer: 是否为“告知/澄清/声明”等信息发布类帖子
-        """
-        if not isinstance(text, str) or not text.strip():
-            return "neutral", False
-
-        s = text.strip()
-        has_support = bool(self._re_support.search(s))
-        has_oppose = bool(self._re_oppose.search(s))
-        is_informer = bool(self._re_informer.search(s))
-
-        if has_support and not has_oppose:
-            stance = "support"
-        elif has_oppose and not has_support:
-            stance = "oppose"
-        elif has_support and has_oppose:
-            # 简化处理：同时出现时视为中立/不确定
-            stance = "neutral"
+        # 设备选择
+        if self.config.device is None:
+            hf_device = 0 if torch.cuda.is_available() else -1
         else:
-            stance = "neutral"
+            if self.config.device == "cpu":
+                hf_device = -1
+            elif self.config.device.startswith("cuda"):
+                # 解析 cuda:idx
+                try:
+                    idx = int(self.config.device.split(":")[1]) if ":" in self.config.device else 0
+                except Exception:
+                    idx = 0
+                hf_device = idx
+            else:
+                hf_device = -1
 
-        return stance, is_informer
+        # 模型与分词器
+        self._tokenizer = AutoTokenizer.from_pretrained(self.config.model_name_or_path)
+        self._model = AutoModelForSequenceClassification.from_pretrained(self.config.model_name_or_path)
+        self._pipe = pipeline(
+            task="zero-shot-classification",
+            model=self._model,
+            tokenizer=self._tokenizer,
+            device=hf_device,
+        )
+
+        # 标签与模板
+        # 立场候选短语与模板（支持提供 target_text 提升准确率）
+        if self.config.target_text:
+            tgt = self.config.target_text.strip()
+            self._stance_labels = [
+                f"supports the claim '{tgt}'",
+                f"opposes the claim '{tgt}'",
+                f"is neutral or unrelated to the claim '{tgt}'",
+            ]
+        else:
+            self._stance_labels = [
+                "expresses support",
+                "expresses opposition",
+                "is neutral or unrelated",
+            ]
+        self._stance_to_canonical = {
+            self._stance_labels[0]: "support",
+            self._stance_labels[1]: "oppose",
+            self._stance_labels[2]: "neutral",
+        }
+        self._stance_template = "This text {}."
+
+        # 告知者检测短语与模板
+        self._informer_labels = [
+            "is an official clarification or announcement",
+            "is not an official clarification or announcement",
+        ]
+        self._informer_template = "This text {}."
+
+    def classify_texts(self, texts: List[str]) -> Tuple[List[str], List[bool]]:
+        """对一批文本分类，返回 (stances, informer_flags)。"""
+        if not texts:
+            return [], []
+
+        # 立场预测（单标签）
+        stance_results = self._pipe(
+            sequences=texts,
+            candidate_labels=self._stance_labels,
+            hypothesis_template=self._stance_template,
+            multi_label=False,
+            batch_size=self.config.batch_size,
+            truncation=True,
+        )
+        if isinstance(stance_results, dict):  # 兼容单条输入返回字典
+            stance_results = [stance_results]
+
+        stances: List[str] = []
+        for res in stance_results:
+            # 取最高分标签并映射到 canonical；低置信度降为 neutral
+            if "labels" in res and res["labels"]:
+                top_label = res["labels"][0]
+                top_score = float(res.get("scores", [0.0])[0])
+                mapped = self._stance_to_canonical.get(top_label, "neutral")
+                if top_score < self.config.confidence_threshold:
+                    mapped = "neutral"
+                stances.append(mapped)
+            else:
+                stances.append("neutral")
+
+        # 告知者预测（可选）
+        informer_flags: List[bool] = [False] * len(texts)
+        if self.config.enable_informer:
+            informer_results = self._pipe(
+                sequences=texts,
+                candidate_labels=self._informer_labels,
+                hypothesis_template=self._informer_template,
+                multi_label=False,
+                batch_size=self.config.batch_size,
+                truncation=True,
+            )
+            if isinstance(informer_results, dict):
+                informer_results = [informer_results]
+            for i, res in enumerate(informer_results):
+                if "labels" in res and res["labels"]:
+                    top_label = res["labels"][0]
+                    top_score = float(res.get("scores", [0.0])[0])
+                    informer_flags[i] = (top_label == self._informer_labels[0]) and (top_score >= self.config.informer_threshold)
+
+        return stances, informer_flags
 
 
 # ===========================
@@ -168,7 +229,7 @@ def assign_timesteps(df: pd.DataFrame) -> pd.DataFrame:
 
 def compute_support_by_timestep(
     df: pd.DataFrame,
-    detector: RuleBasedStanceDetector,
+    detector: BertZeroShotStanceDetector,
 ) -> Tuple[pd.DataFrame, int]:
     """对带有 `timestep` 的帖子表进行逐步聚合，计算支持率并检测首个告知者步骤。
 
@@ -179,13 +240,9 @@ def compute_support_by_timestep(
     if df.empty:
         return pd.DataFrame(columns=["timestep", "support_ratio", "claim_step"]), -1
 
-    # 分类
-    stance_list: List[str] = []
-    informer_flags: List[bool] = []
-    for text in df["content"].astype(str).tolist():
-        stance, is_inf = detector.classify(text)
-        stance_list.append(stance)
-        informer_flags.append(is_inf)
+    # 分类（批量）
+    texts: List[str] = df["content"].astype(str).tolist()
+    stance_list, informer_flags = detector.classify_texts(texts)
 
     df = df.copy()
     df["stance"] = stance_list
@@ -225,17 +282,34 @@ def export_csv(agg_df: pd.DataFrame, out_path: str) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Rule-based stance detection and timestep CSV export")
+    parser = argparse.ArgumentParser(description="BERT zero-shot stance detection and timestep CSV export")
     parser.add_argument("--db_path", type=str, required=True, help="SQLite 数据库路径（含 post 表）")
     parser.add_argument("--output_csv", type=str, required=True, help="输出 CSV 路径")
     parser.add_argument("--only_original", action="store_true", default=True, help="仅统计原创帖（默认开启）")
     parser.add_argument("--include_reposts", dest="only_original", action="store_false", help="包含转发/引用")
     parser.add_argument("--exclude_neutral", action="store_true", help="支持率分母排除中立/未判定")
+    parser.add_argument("--model_name", type=str, default="facebook/bart-large-mnli", help="Hugging Face 模型名或路径（MNLI）")
+    parser.add_argument("--batch_size", type=int, default=16, help="推理批大小")
+    parser.add_argument("--device", type=str, default=None, help="推理设备，例如 cpu、cuda:0；默认自动")
+    parser.add_argument("--no_informer", action="store_true", help="关闭告知者检测")
+    parser.add_argument("--target", type=str, default=None, help="（可选）立场针对的主题/命题文本")
+    parser.add_argument("--threshold", type=float, default=0.5, help="立场判定置信度阈值")
+    parser.add_argument("--informer_threshold", type=float, default=0.6, help="告知者判定置信度阈值")
 
     args = parser.parse_args()
 
-    cfg = DetectorConfig(only_original=args.only_original, exclude_neutral=args.exclude_neutral)
-    detector = RuleBasedStanceDetector(cfg)
+    cfg = DetectorConfig(
+        only_original=args.only_original,
+        exclude_neutral=args.exclude_neutral,
+        model_name_or_path=args.model_name,
+        batch_size=args.batch_size,
+        device=args.device,
+        enable_informer=not args.no_informer,
+        target_text=args.target,
+        confidence_threshold=args.threshold,
+        informer_threshold=args.informer_threshold,
+    )
+    detector = BertZeroShotStanceDetector(cfg)
 
     # 1) 读取 & 时间步
     posts = read_posts(args.db_path, only_original=cfg.only_original)

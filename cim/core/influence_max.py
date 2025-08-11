@@ -47,7 +47,6 @@ class InfluenceMaximization:
         Args:
             config: 配置对象
         """
-        self.config = config
         self.users_file = users_file
         self.logger = logging.getLogger(__name__)
         
@@ -294,14 +293,15 @@ def follow_matrix_get(users_file) -> np.ndarray:
     return follow_matrix
 
 
-def get_influence_maximization_nodes(users_file:str, k: int = 5, algorithm: str = "Greedy", 
+def get_influence_maximization_nodes(users_file:str, k: int = 5, k_ratio: float = None, algorithm: str = "Greedy", 
                                    model: str = "IC", p: float = 0.1, num_simulations: int = 1000):
     """
     获取影响力最大化节点
     
     Args:
         config: 配置对象
-        k: 种子节点数量
+        k: 种子节点数量（当 k_ratio 未提供时生效）
+        k_ratio: 种子节点占比（0-1 之间），优先于 k，例如 0.05/0.10/0.15/0.20
         algorithm: 算法类型 ("Greedy" 或 "Random")
         model: 传播模型 ("IC" 或 "LT")
         p: 传播概率
@@ -313,7 +313,6 @@ def get_influence_maximization_nodes(users_file:str, k: int = 5, algorithm: str 
     logger = logging.getLogger(__name__)
     
     logger.info(f"开始{algorithm}算法影响力最大化...")
-    logger.info(f"算法参数: k={k}, model={model}, p={p}")
     
     # 初始化算法
     im_algorithm = InfluenceMaximization(users_file)
@@ -321,6 +320,13 @@ def get_influence_maximization_nodes(users_file:str, k: int = 5, algorithm: str 
     # 加载网络数据
     follow_matrix = follow_matrix_get(users_file=users_file)
     im_algorithm.load_network(follow_matrix)
+    # 若提供比例，则按比例换算实际的 k
+    if k_ratio is not None:
+        k_calc = max(1, int(round(im_algorithm.n_nodes * k_ratio)))
+        k = min(k_calc, im_algorithm.n_nodes)
+        logger.info(f"算法参数: ratio={k_ratio:.2%} -> k={k}, model={model}, p={p}")
+    else:
+        logger.info(f"算法参数: k={k}, model={model}, p={p}")
     
     # 根据算法类型选择种子节点
     if algorithm == "Greedy":
@@ -347,6 +353,7 @@ def get_influence_maximization_nodes(users_file:str, k: int = 5, algorithm: str 
         "algorithm_params": {
             "algorithm": algorithm,
             "k": k,
+            "k_ratio": k_ratio,
             "model": model,
             "p": p,
             "num_simulations": num_simulations
