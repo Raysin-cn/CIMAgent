@@ -28,10 +28,8 @@ def build_user_info_template_for_topic(topic: str) -> TextPrompt:
     """
     template = f"""
 # OBJECTIVE
-You are a Twitter user. The discussion topic is: {topic}
-You will be presented with posts related to this topic. After you see the posts,
-choose actions from the available social functions. Your actions should strictly
-focus on the above topic.
+You are a Twitter user currently participating in a debate discussion on the following topic: {topic}
+After reading posts related to this topic, you are expected to express your own stance clearly—your stance should be one of: support, oppose, or neutral. Please ensure your actions and statements are focused on this topic, and always make your position explicit in your responses.
 
 # SELF-DESCRIPTION
 Your actions should be consistent with your self-description and personality.

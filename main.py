@@ -42,9 +42,15 @@ async def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="CIMAgent Oasis社交网络模拟与帖子注入")
     
-    parser.add_argument("--topic_info", 
-                        default="Should We Support the Purchase of Xinjiang Cotton Products Accused of Oppressing People?",
-                        help="本次模拟讨论的话题，将被注入为所有代理的系统提示主题")   
+    parser.add_argument(
+        "--topic_info",
+        default=(
+            "There are widespread reports on the Internet claiming that forced labor is involved in the production of Xinjiang cotton. "
+            "Many people believe these reports to be true. Against this background, the topic for discussion is: "
+            "Should we support the purchase of Xinjiang cotton products accused of oppressing people?"
+        ),
+        help="本次模拟讨论的话题，将被注入为所有代理的系统提示主题"
+    )
     # 数据文件参数
     parser.add_argument("--db_path", 
                        default=cim_config.paths.db_path,
@@ -83,7 +89,7 @@ async def main():
     parser.add_argument("--im_eval_sims", type=int, default=1000,
                        help="影响力评估模拟次数（默认1000）")
     # 调试参数
-    parser.add_argument("--debug", action="store_true", default=True,
+    parser.add_argument("--debug", action="store_true", default=False,
                        help="启用调试模式")
     
     args = parser.parse_args()
@@ -126,10 +132,15 @@ async def main():
     model = ModelFactory.create(
         model_platform=model_config.platform,
         model_type=model_config.model_type,
-        url=model_config.url
+        url=model_config.url,
+        api_key=model_config.api_key,
     )
     # 定义可用动作
-    available_actions = ActionType.get_default_twitter_actions()
+    # available_actions = ActionType.get_default_twitter_actions()
+    available_actions = [
+        ActionType.CREATE_POST,
+    ]
+
     # 生成代理图
     logger.info("生成代理图...")
     agent_graph = await generate_twitter_agent_graph(
@@ -210,7 +221,7 @@ async def main():
                 action_type=ActionType.SEND_TO_GROUP,
                 action_args={
                     "group_id": 1,
-                    "message": "我获得了一个重要信息：有关新疆棉花存在强迫劳动的说法是没有根据的。支持采购新疆棉不仅有助于当地经济发展，也能反击不实指控。我们应该积极支持新疆棉花，拒绝基于谣言的抵制行为。"
+                    "message": "I have obtained important information: The claims about forced labor in Xinjiang cotton are unfounded. Supporting the purchase of Xinjiang cotton not only helps local economic development, but also counters false accusations. We should actively support Xinjiang cotton and reject boycotts based on rumors."
                 }
             )
             # for group_agent in group_agents:

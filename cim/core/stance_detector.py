@@ -30,6 +30,7 @@ import argparse
 import sqlite3
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
+import sqlite3 as _sqlite3  # for claim_step extraction from trace
 
 import pandas as pd
 import torch
@@ -203,18 +204,19 @@ def assign_timesteps(df: pd.DataFrame) -> pd.DataFrame:
 
     策略：
     - 将 created_at 解析为时间（to_datetime，errors='coerce'）
-    - 对非空时间做去重排序后进行稠密排名（1..T），作为 timestep
+    - 对非空时间做去重排序后进行稠密排名（1..U），作为初始 timestep
     - 若全部解析失败，则按原行顺序稠密分配（每个不同 created_at 视为一个时间点）
     """
     if df.empty:
         return df.assign(timestep=pd.Series(dtype=int))
 
     # TODO 时间上理论上是[1,2,...,12]总共12步，每个created_at应该在这个范围内。
+    # TODO 每个用户在每个时间步，都需要有一个post内容作为其立场状态。这里需要判断用户是否在某个时间步缺失content，如果缺失content，则需要填充一下该时间步前一个最近发布的content。
     ts = pd.to_datetime(df["created_at"], errors="coerce")
     if ts.notna().any():
-        # 使用非空时间做稠密排名
+        # 使用非空时间做稠密排名，并从0开始
         # 注意：同一时间戳将映射到同一时间步
-        order = ts.rank(method="dense").astype("Int64")
+        order = ts.rank(method="dense").astype("Int64") - 1
         # 若有 NaT，则为其填入最近的时间步或新开时间步；这里简单地用前向填充后再填后向
         order = order.ffill().bfill().astype(int)
         df = df.copy()
@@ -223,8 +225,83 @@ def assign_timesteps(df: pd.DataFrame) -> pd.DataFrame:
     else:
         # created_at 全部无法解析，则按行号稠密排名（稳定排序）
         df = df.copy()
-        df["timestep"] = pd.RangeIndex(start=1, stop=len(df) + 1)
+        df["timestep"] = pd.RangeIndex(start=0, stop=len(df))
         return df
+
+
+def fill_missing_timesteps_with_ffill(
+    df: pd.DataFrame,
+    total_steps: int,
+) -> pd.DataFrame:
+    """按用户对齐 1..total_steps，并对缺失时间步前向填充上一条非空 content。
+
+    约束与说明：
+    - 仅前向填充，不进行后向填充。即：若某用户在其首条内容出现之前的时间步没有内容，则这些时间步仍然为空，将被丢弃。
+    - 会丢弃 content 仍为缺失的行（例如该用户从未发过帖，或首条内容在较晚时间步，之前步无内容）。
+    - 若 df 中存在超过 total_steps 的 timestep，将被裁剪至 1..total_steps 范围内。
+    """
+    if df.empty:
+        return df
+
+    if "timestep" not in df.columns:
+        raise ValueError("fill_missing_timesteps_with_ffill 需要输入包含 'timestep' 列的 DataFrame")
+
+    # 仅保留 1..total_steps 范围
+    df = df.copy()
+    df = df.loc[(df["timestep"].astype(int) >= 1) & (df["timestep"].astype(int) <= int(total_steps))]
+    if df.empty:
+        return df.assign(timestep=pd.Series(dtype=int))
+
+    required_cols = ["user_id", "content", "timestep"]
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"缺少必要列: {missing}")
+
+    filled_parts: list[pd.DataFrame] = []
+    for user_id, sub in df.groupby("user_id", sort=False):
+        if user_id == 0:
+            continue
+        # 对同一用户在同一时间步的多条记录进行去重：保留该步内“最新”的一条
+        # 依据顺序：timestep 升序，created_at 升序，post_id 升序，然后取每个 timestep 的最后一条
+        sort_cols = ["timestep"]
+        if "created_at" in sub.columns:
+            sort_cols.append("created_at")
+        if "post_id" in sub.columns:
+            sort_cols.append("post_id")
+        sub = (
+            sub.sort_values(sort_cols)
+               .drop_duplicates(subset=["timestep"], keep="last")
+               .sort_values("timestep")
+               .copy()
+        )
+        observed_steps = set(int(x) for x in sub["timestep"].tolist())
+
+        # 重建 1..total_steps 的索引
+        full_index = pd.Index(range(1, int(total_steps) + 1), name="timestep")
+        frame = (
+            sub.set_index("timestep")
+            .reindex(full_index)
+        )
+        frame["user_id"] = user_id
+
+        # 仅前向填充 content
+        frame["content"] = frame["content"].ffill()
+
+        # 标注该时间步是否为观测到的原始帖
+        frame["is_observed"] = frame.index.to_series().apply(lambda t: int(t) in observed_steps)
+
+        # 丢弃 content 仍为空的行（该用户在此步之前从未发帖）
+        frame = frame.reset_index()
+        frame = frame.loc[frame["content"].notna()]
+
+        filled_parts.append(frame[["user_id", "content", "timestep", "is_observed"]])
+
+    if not filled_parts:
+        return df.assign(timestep=pd.Series(dtype=int))
+
+    out = pd.concat(filled_parts, ignore_index=True)
+    out["timestep"] = out["timestep"].astype(int)
+    return out
 
 
 def compute_support_by_timestep(
@@ -248,11 +325,8 @@ def compute_support_by_timestep(
     df["stance"] = stance_list
     df["is_informer"] = informer_flags
 
-    # 首次告知者时间步
+    # 旧的告知者时间步逻辑废除：由外部确定后再覆盖
     claim_step: int = -1
-    tmp = df.loc[df["is_informer"], "timestep"]
-    if not tmp.empty:
-        claim_step = int(tmp.min())
 
     # 逐步聚合
     rows: List[dict] = []
@@ -272,6 +346,36 @@ def compute_support_by_timestep(
 
     agg_df = pd.DataFrame(rows).sort_values("timestep").reset_index(drop=True)
     return agg_df, claim_step
+
+
+def read_claim_step_from_trace(db_path: str) -> int:
+    """从 SQLite 的 `trace` 表读取用户 0 的 `send_to_group` 动作的 created_at，作为 claim_step。
+
+    若不存在，则返回 -1。
+    该 created_at 在模拟中等同于时间步编号。
+    """
+    conn = _sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT created_at
+            FROM trace
+            WHERE user_id = 0 AND action = 'send_to_group'
+            ORDER BY created_at ASC
+            LIMIT 1
+            """
+        )
+        row = cur.fetchone()
+        if row is None:
+            return -1
+        # created_at 记录的是整数时间步
+        try:
+            return int(row[0])
+        except Exception:
+            return -1
+    finally:
+        conn.close()
 
 
 def export_csv(agg_df: pd.DataFrame, out_path: str) -> str:
@@ -295,6 +399,7 @@ def main() -> None:
     parser.add_argument("--target", type=str, default=None, help="（可选）立场针对的主题/命题文本")
     parser.add_argument("--threshold", type=float, default=0.5, help="立场判定置信度阈值")
     parser.add_argument("--informer_threshold", type=float, default=0.6, help="告知者判定置信度阈值")
+    parser.add_argument("--total_steps", type=int, default=None, help="固定总时间步数 T。若提供，则为每个用户对齐 1..T 并对缺失步前向填充上一条非空 content")
 
     args = parser.parse_args()
 
@@ -315,8 +420,21 @@ def main() -> None:
     posts = read_posts(args.db_path, only_original=cfg.only_original)
     posts = assign_timesteps(posts)
 
+    # 1.1) 若提供 total_steps，则按用户对齐 1..T 并进行前向填充
+    if args.total_steps is not None:
+        posts = fill_missing_timesteps_with_ffill(posts, args.total_steps)
+
     # 2) 聚合
-    agg_df, claim_step = compute_support_by_timestep(posts, detector)
+    agg_df, _ = compute_support_by_timestep(posts, detector)
+
+    # 2.1) 覆盖 claim_step：从 trace 表读取 user_id=0 的 send_to_group 的 created_at
+    claim_step = read_claim_step_from_trace(args.db_path)
+    if claim_step != -1:
+        agg_df = agg_df.sort_values("timestep").reset_index(drop=True)
+        # 新增列 claim_step_fill: 在 claim_step 之前为 0，之后为 claim_step
+        def _fill_val(t: int) -> int:
+            return 0 if (claim_step == -1 or t < claim_step) else int(claim_step)
+        agg_df["claim_step"] = agg_df["timestep"].astype(int).map(_fill_val)
 
     # 3) 导出
     out_csv = export_csv(agg_df, args.output_csv)

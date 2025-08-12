@@ -15,13 +15,13 @@ RATIOS=(0.05 0.10 0.15 0.20)
 GOCS=(0 1)
 CLAIMS=(0 3 6 9)
 
-timestamp() { date +"%Y%m%d_%H%M%S"; }
+timestamp() { date +"%m%d_%H%M"; }
 
 for ratio in "${RATIOS[@]}"; do
   for goc in "${GOCS[@]}"; do
     if [[ "$goc" -eq 1 ]]; then
       for claim in "${CLAIMS[@]}"; do
-        DB_PATH="$DB_DIR/sim_$(timestamp)_r${ratio}_g${goc}_c${claim}.db"
+        DB_PATH="$DB_DIR/Qwen_sim_$(timestamp)_r${ratio}_g${goc}_c${claim}.db"
         echo "Running: ratio=$ratio goc=$goc claim=$claim -> $DB_PATH"
         ARGS=(
           --im_k_ratio "$ratio"
@@ -36,7 +36,7 @@ for ratio in "${RATIOS[@]}"; do
       done
     else
       # goc=0 时，claim_step 无效，固定为 0 运行一次
-      DB_PATH="$DB_DIR/sim_$(timestamp)_r${ratio}_g${goc}.db"
+      DB_PATH="$DB_DIR/Qwen_sim_$(timestamp)_r${ratio}_g${goc}.db"
       echo "Running: ratio=$ratio goc=$goc -> $DB_PATH"
       ARGS=(
         --im_k_ratio "$ratio"

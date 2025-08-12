@@ -8,18 +8,28 @@ import os
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
 from pathlib import Path
-from camel.types import ModelPlatformType
+from camel.types import ModelPlatformType, ModelType
 
 
 @dataclass
 class ModelConfig:
     """模型配置"""
     platform: ModelPlatformType = ModelPlatformType.VLLM
-    model_type: str = "Qwen3-14B-INT8"
+    model_type: str = "Qwen3-30B-A3B-GPTQ-Int4"
     url: str = "http://localhost:12345/v1"
+    api_key: str = "NONE"
     max_tokens: int = 10000
-    temperature: float = 1.0
+    temperature: float = 0
     timeout: int = 30
+
+    # platform: ModelPlatformType = ModelPlatformType.OPENAI
+    # model_type: ModelType = ModelType.GPT_4O_MINI
+    # url: str = "https://api.gptgod.online/v1/"
+    # api_key: str = "sk-0F8p7ljy9VVJa0555Y8te4XSoINHh0t72WDooFhOHkxL0kTP"
+    # # max_tokens: int = 10000
+    # temperature: float = 1.0
+    # timeout: int = 30
+    
 
 
 @dataclass
